@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Surveyor Multi-Converter</title>
+<style>
+  :root{
+    --fg:#0b0d12;--bg:#f7f8fb;--card:#ffffff;--muted:#6a7080;--ring:#8ab8ff;
+    --shadow:0 10px 26px rgba(0,0,0,.08);--r:16px;--t:.18s;
+    --fx-bar:rgba(47,125,225,.45);--fx-spark:rgba(47,125,225,.9)
+  }
+  [data-theme="dark"]{
+    --fg:#e7eaf3;--bg:#0d1117;--card:#111827;--muted:#9aa3b2;--ring:#6aa3ff;
+    --shadow:0 12px 28px rgba(0,0,0,.35);
+    --fx-bar:rgba(120,180,255,.45);--fx-spark:rgba(150,200,255,.9)
+  }
+
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font:500 14px/1.35 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
+    color:var(--fg);background:var(--bg);transition:background-color var(--t),color var(--t)}
+
+  .container{max-width:1000px;margin:18px auto;padding:0 12px}
+  .header{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .title{display:flex;align-items:center;gap:8px}
+  .title h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.2px}
+  .small{color:var(--muted);font-weight:500}
+  .muted{color:var(--muted)}
+  .actions{display:flex;gap:8px;align-items:center}
+
+  .btn{position:relative;border:0;border-radius:999px;padding:7px 12px;background:var(--card);color:var(--fg);
+    box-shadow:var(--shadow);cursor:pointer;outline:2px solid transparent;outline-offset:2px;font-weight:600}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:focus-visible{outline-color:var(--ring)}
+  .btn.sm{padding:5px 8px;border-radius:10px;font-size:12px}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-top:10px}
+  .card{grid-column:span 12;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  @media(min-width:740px){.card{grid-column:span 6}}
+  .card-hd{display:flex;gap:10px;align-items:center;cursor:pointer;padding:12px}
+  .card-hd:hover{background:linear-gradient(0deg,rgba(0,0,0,.03),transparent)}
+  .icon{font-size:18px}
+  .card-tt{font-weight:800}
+  .card-bl{color:var(--muted)}
+  .card-body{padding:12px;border-top:1px solid rgba(120,120,140,.15);display:none}
+  .card.open .card-body{display:block}
+
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0}
+  .input,.select{position:relative;flex:1 1 140px}
+  input,select{width:100%;padding:8px 9px;border-radius:12px;border:1px solid rgba(120,120,140,.22);
+    background:transparent;color:var(--fg);font-size:13px}
+  input[type=number]{-moz-appearance:textfield}
+  input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  label{font-size:11px;color:var(--muted);display:block;margin:2px 0 4px}
+  .swap{padding:8px 10px}
+
+  .result{position:relative;margin-top:6px;padding:10px;border-radius:14px;background:rgba(120,120,140,.08);overflow:hidden}
+  .result .val{font-size:18px;font-weight:900;letter-spacing:.2px;position:relative;z-index:2}
+  .copy{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:999px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+  .tooltip{position:absolute;top:-22px;right:0;background:var(--fg);color:var(--bg);font-size:10px;padding:3px 5px;border-radius:8px;opacity:0;transform:translateY(6px);transition:var(--t)}
+  .tooltip.show{opacity:1;transform:none}
+  .note{font-style:italic;color:var(--muted);margin-top:6px}
+  hr.sep{border:0;border-top:1px dashed rgba(127,127,150,.25);margin:8px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+  .chip{border-radius:999px;padding:6px 10px;background:rgba(127,127,150,.16);border:1px dashed rgba(127,127,150,.35);cursor:pointer}
+
+  /* Slope viz */
+  #sTri{width:100%;max-width:300px;height:160px;border:1px dashed rgba(127,127,150,.25);border-radius:12px;background:rgba(127,127,150,.06)}
+  #sExplain{margin-top:6px;color:var(--muted)}
+
+  .credit{position:fixed;right:10px;bottom:8px;font-size:11px;color:var(--muted);opacity:.85}
+  :focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+
+  /* 0.5s flash + progress + sparks (inside result) */
+  .fx-run{position:absolute;inset:0;z-index:1;pointer-events:none}
+  .fx-bar{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--fx-bar);border-radius:4px}
+  .fx-sweep{position:absolute;inset:0;opacity:.20;background:linear-gradient(90deg, transparent 0%, var(--fx-bar) 50%, transparent 100%);
+            transform:translateX(-100%);filter:blur(0.6px)}
+  @keyframes sweep{to{transform:translateX(100%)}}
+  .spark{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--fx-spark);filter:drop-shadow(0 0 6px var(--fx-spark));opacity:.9}
+  @keyframes rise{to{transform:translateY(-24px) translateX(8px);opacity:0}}
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="title">
+        <span class="icon">🧭</span>
+        <h1>Surveyor Multi-Converter</h1>
+        <span class="small">Minimal • Offline • Fast</span>
+      </div>
+      <div class="actions">
+        <button id="themeBtn" class="btn ocean toggle" aria-pressed="false" aria-label="Toggle theme">
+          <span class="ico">🌞</span><span class="lab">Light</span>
+        </button>
+        <span class="small">v1.0</span>
+      </div>
+    </header>
+
+    <details class="about small">
+      <summary><strong>About</strong> — Modules & tips</summary>
+      <ul>
+        <li><b>Linear</b> (m, cm, mm, km, inch, ft, yd, mi, chain, link, + output as Feet–Inch or Chain–Link)</li>
+        <li><b>Area</b> (m², km², hectare, acre, ft², yd², vaar, guntha, small vigha, vigha, are, brass)</li>
+        <li><b>Volume</b> (m³, L, MLt, km³, ft³, brass)</li>
+        <li><b>Slope</b> (degrees ↔ percent ↔ 1 in N + triangle viz)</li>
+      </ul>
+      <p class="small">History shows your last 5 <i>unit pairs</i>. Click to reuse.</p>
+    </details>
+
+    <div class="grid" id="grid">
+      <!-- Linear -->
+      <div class="card" data-mod="linear">
+        <div class="card-hd">
+          <div class="icon">🔁</div>
+          <div>
+            <div class="card-tt">Linear</div>
+            <div class="card-bl">Feet–Inch & Chain–Link outputs supported</div>
+          </div>
+        </div>
+        <div class="card-body"></div>
+      </div>
+
+      <!-- Area -->
+      <div class="card" data-mod="area">
+        <div class="card-hd">
+          <div class="icon">📐</div>
+          <div>
+            <div class="card-tt">Area</div>
+            <div class="card-bl">Includes Vigha, Guntha, Are & Brass</div>
+          </div>
+        </div>
+        <div class="card-body"></div>
+      </div>
+
+      <!-- Volume -->
+      <div class="card" data-mod="volume">
+        <div class="card-hd">
+          <div class="icon">📦</div>
+          <div>
+            <div class="card-tt">Volume</div>
+            <div class="card-bl">Brass fixed to 100 ft³</div>
+          </div>
+        </div>
+        <div class="card-body"></div>
+      </div>
+
+      <!-- Slope -->
+      <div class="card" data-mod="slope">
+        <div class="card-hd">
+          <div class="icon">⛰️</div>
+          <div>
+            <div class="card-tt">Slope</div>
+            <div class="card-bl">Degrees ↔ Percent ↔ 1 in N + viz</div>
+          </div>
+        </div>
+        <div class="card-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="credit">(C) Vijay Parmar</div>
+
+<script>
+/* ===== helpers & storage ===== */
+const $  = (s, p=document) => p.querySelector(s);
+const $$ = (s, p=document) => [...p.querySelectorAll(s)];
+const ls = {
+  get:(k,def)=>{ try{const v=localStorage.getItem(k);return v?JSON.parse(v):def}catch{return def} },
+  set:(k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v))}catch{} }
+};
+const numFmt = (v,dec=6)=> !isFinite(v) ? "—" : (+v).toLocaleString(undefined,{maximumFractionDigits:dec});
+const setText = (el, t)=>{ el.textContent=t; };
+function copyBtn(target){
+  const b=document.createElement("button"); b.className="btn sm copy"; b.textContent="📋";
+  const tip=document.createElement("div"); tip.className="tooltip"; tip.textContent="Copied!"; b.appendChild(tip);
+  b.onclick=async ()=>{ const txt=(target.textContent||"").replace(/,/g,"");
+    try{ await navigator.clipboard.writeText(txt); tip.classList.add("show"); setTimeout(()=>tip.classList.remove("show"),600);}catch{} };
+  return b;
+}
+function lastKey(mod){return `smc.${mod}.last`;}
+function histKey(mod){return `smc.${mod}.hist`;}
+function pushHistory(mod, entry){
+  const list=ls.get(histKey(mod),[])||[];
+  list.unshift(entry);
+  if(list.length>5) list.length=5;
+  ls.set(histKey(mod),list);
+  return list;
+}
+
+/* ===== theme ===== */
+const theme = (()=>{ 
+  const key='smc.theme';
+  const get = ()=> ls.get(key) ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+  const apply = t => {
+    document.documentElement.setAttribute('data-theme',t); ls.set(key,t);
+    const b = $('#themeBtn');
+    if(b){ b.setAttribute('aria-pressed', t==='dark');
+      $('.lab',b).textContent=t==='light'?'Light':'Dark';
+      $('.ico',b).textContent=t==='light'?'🌞':'🌙';
+    }
+  };
+  const init = ()=>{ apply(get()); const b=$('#themeBtn'); if(b) b.onclick=()=>apply(get()==='dark'?'light':'dark'); };
+  return {init};
+})();
+
+/* ===== tiny FX: 0.5s sweep + sparks inside result ===== */
+function runFX(resEl){
+  // remove old fx if any
+  const old = $('.fx-run', resEl); if(old) old.remove();
+  const wrap = document.createElement('div'); wrap.className='fx-run';
+
+  const sweep = document.createElement('div'); sweep.className='fx-sweep';
+  sweep.style.animation='sweep .5s ease-out forwards';
+  wrap.appendChild(sweep);
+
+  const bar = document.createElement('div'); bar.className='fx-bar';
+  // animate bar with JS to ensure 0.5s fill
+  requestAnimationFrame(()=>{ bar.style.transition='width .5s ease-out'; bar.style.width='100%'; });
+  wrap.appendChild(bar);
+
+  // simple sparks
+  for(let i=0;i<6;i++){
+    const sp = document.createElement('div'); sp.className='spark';
+    const x = 6 + Math.random()* (resEl.clientWidth-20);
+    const y = resEl.clientHeight - 10;
+    sp.style.left = x+'px'; sp.style.top = y+'px';
+    sp.style.animation = `rise .5s ease-out forwards`;
+    wrap.appendChild(sp);
+  }
+  resEl.appendChild(wrap);
+  setTimeout(()=>wrap.remove(), 520);
+}
+
+/* ===== Linear (single, S-L, F-I) ===== */
+// Per your spec: 1 link = 0.629 m; 1 chain = 16 links = 10.064 m
+const Linear = (()=>{ // base: meters
+  const LINK_M = 0.629;
+  const CHAIN_LINKS = 16;
+  const toM = {
+    m:1, cm:.01, mm:.001, km:1000,
+    inch:.0254, ft:.3048, yd:.9144, mi:1609.344,
+    chain: LINK_M * CHAIN_LINKS, link: LINK_M
+  };
+  const units = Object.keys(toM);
+  const normPair=(A,B,base)=>{A=+A||0;B=+B||0;
+    if(B>=base){A+=Math.floor(B/base);B=B%base;}
+    if(B<0){const k=Math.ceil(Math.abs(B)/base);A-=k;B+=k*base;}
+    return [A,B];
+  };
+  function ui(card){
+    card.innerHTML=`
+      <div class="row">
+        <div class="select"><label>Mode</label>
+          <select id="linMode">
+            <option value="single">Single value</option>
+            <option value="sl">Chain–Link (S-L)</option>
+            <option value="fi">Feet–Inch (F-I)</option>
+          </select>
+        </div>
+        <div class="input"><label>Precision</label><input id="linPrec" type="number" min="0" max="9" step="1" value="6"></div>
+      </div>
+      <div id="linSingle">
+        <div class="row">
+          <div class="input"><label>Value</label><input id="linVal" inputmode="decimal" placeholder="e.g., 12.5"></div>
+          <div class="select"><label>From</label><select id="linFrom"></select></div>
+          <button class="btn sm swap" id="linSwap" title="Swap">⇄</button>
+          <div class="select"><label>To</label><select id="linTo"></select></div>
+        </div>
+      </div>
+      <div id="linSL" style="display:none">
+        <div class="row">
+          <div class="input"><label>S-L (Chain–Link)</label><input id="linSLraw" inputmode="text" placeholder="e.g., 2-5 (2 chains 5 links)"></div>
+          <div class="select"><label>To Unit</label><select id="linSLto"></select></div>
+        </div>
+      </div>
+      <div id="linFI" style="display:none">
+        <div class="row">
+          <div class="input"><label>F-I (Feet–Inch)</label><input id="linFIraw" inputmode="text" placeholder="e.g., 6-6 (6 ft 6 in)"></div>
+          <div class="select"><label>To Unit</label><select id="linFIto"></select></div>
+        </div>
+      </div>
+      <div class="result" id="linRes"><div class="val" id="linOut">—</div></div>
+      <div class="note" id="linNote"></div>
+      <div class="row"><small class="muted">History (last 5 pairs)</small></div>
+      <div class="chips" id="linHist"></div>
+    `;
+
+    // populate
+    const fillUnits = (sel, extras=[])=>{
+      sel.innerHTML = [...units, ...extras].map(u=>{
+        if(u==='fi') return `<option value="fi">Feet–Inch (F-I)</option>`;
+        if(u==='sl') return `<option value="sl">Chain–Link (S-L)</option>`;
+        return `<option value="${u}">${u}</option>`;
+      }).join('');
+    };
+    fillUnits($('#linFrom',card));
+    fillUnits($('#linTo',card), ['fi','sl']); // allow F-I and S-L as output
+    fillUnits($('#linSLto',card)); // numeric targets
+    fillUnits($('#linFIto',card)); // numeric targets
+
+    const last=ls.get(lastKey('linear'),{from:'m',to:'ft',prec:6,mode:'single'});
+    $('#linFrom',card).value=last.from; $('#linTo',card).value=last.to; $('#linPrec',card).value=String(last.prec||6); $('#linMode',card).value=last.mode||'single';
+
+    const res=$('#linRes',card), out=$('#linOut',card); res.appendChild(copyBtn(out));
+    const histWrap=$('#linHist',card), note=$('#linNote',card);
+    const fromSel=$('#linFrom',card), toSel=$('#linTo',card), precInp=$('#linPrec',card), modeSel=$('#linMode',card);
+    const slTo=$('#linSLto',card), fiTo=$('#linFIto',card);
+
+    const showMode=m=>{
+      $('#linSingle',card).style.display=m==='single'?'block':'none';
+      $('#linSL',card).style.display=m==='sl'?'block':'none';
+      $('#linFI',card).style.display=m==='fi'?'block':'none';
+    };
+    showMode($('#linMode',card).value);
+
+    const parsePair=txt=>{ const m=(txt||'').trim().split(/[-\s]+/); return [+m[0]||0,+m[1]||0]; };
+
+    function explainFactor(fu,tu){
+      // dynamic factor line like "1 Mile = 1.609344 Kilometers"
+      const name = (u)=>{
+        if(u==='fi') return 'Feet';
+        if(u==='sl') return 'Chains';
+        return u;
+      };
+      if(!toM[fu]) return '';
+      if(tu==='fi'){
+        const fac = 1*toM[fu]/toM.ft;
+        return `1 ${fu} = ${numFmt(fac,6)} Feet  •  (Output shown as F-I)`;
+      }
+      if(tu==='sl'){
+        const linksPer = (1*toM[fu]/toM.link);
+        const chainsPer = linksPer/CHAIN_LINKS;
+        return `1 ${fu} = ${numFmt(chainsPer,6)} Chains  •  1 Chain = ${CHAIN_LINKS} Links, 1 Link = ${LINK_M} m`;
+      }
+      // scalar to scalar
+      const fac = toM[fu] / toM[tu];
+      return `1 ${fu} = ${numFmt(fac,9)} ${name(tu)}`;
+    }
+
+    function compute(){
+      let m=NaN, pair=''; const dec=+precInp.value||6;
+      if(modeSel.value==='single'){
+        const v=parseFloat(($('#linVal',card).value||'').replace(/,/g,'')); const fu=fromSel.value, tu=toSel.value;
+        if(isFinite(v)){
+          m=v*toM[fu]; pair=`${fu}→${tu}`;
+          if(tu==='fi'){
+            const totalIn = m/toM.inch;
+            const ft = Math.floor(totalIn/12);
+            const inch = totalIn - ft*12;
+            setText(out, `${ft}-${numFmt(inch,dec)}`);
+          }else if(tu==='sl'){
+            const totalLinks = m/toM.link;
+            const chains = Math.floor(totalLinks/CHAIN_LINKS);
+            const links = totalLinks - chains*CHAIN_LINKS;
+            setText(out, `${chains}-${numFmt(links,dec)}`);
+          }else{
+            setText(out,numFmt(m/toM[tu],dec));
+          }
+          note.textContent = explainFactor(fu,tu);
+          runFX(res);
+        }
+      }else if(modeSel.value==='sl'){
+        let [S,L]=parsePair($('#linSLraw',card).value); [S,L]=normPair(S,L,CHAIN_LINKS); $('#linSLraw',card).value=`${S}-${L}`;
+        const tu=slTo.value; m=((S*CHAIN_LINKS)+L)*toM.link; pair=`SL→${tu}`; setText(out,numFmt(m/toM[tu],dec));
+        note.textContent = `1 Chain = ${CHAIN_LINKS} Links • 1 Link = ${LINK_M} m`;
+        runFX(res);
+      }else{
+        let [F,I]=parsePair($('#linFIraw',card).value); [F,I]=normPair(F,I,12); $('#linFIraw',card).value=`${F}-${I}`;
+        const tu=fiTo.value; m=((F*12)+I)*toM.inch; pair=`F-I→${tu}`; setText(out,numFmt(m/toM[tu],dec));
+        note.textContent = `1 Foot = 12 Inches • 1 in = 0.0254 m`;
+        runFX(res);
+      }
+      if(isFinite(m)){ const hx=pushHistory('linear',{ts:Date.now(),pair}); renderHistory(hx); }
+      ls.set(lastKey('linear'),{from:fromSel.value,to:toSel.value,prec:dec,mode:modeSel.value});
+    }
+
+    function renderHistory(list){
+      histWrap.innerHTML=list.map(h=>`<button class="chip" title="${new Date(h.ts).toLocaleString()}">${h.pair}</button>`).join('');
+      $$('button.chip',histWrap).forEach((b,i)=>b.onclick=()=>{
+        const p=list[i].pair; const [a,b2]=p.split('→');
+        if(a==='SL'){ modeSel.value='sl'; showMode('sl'); slTo.value=b2; }
+        else if(a==='F-I'){ modeSel.value='fi'; showMode('fi'); fiTo.value=b2; }
+        else { modeSel.value='single'; showMode('single'); fromSel.value=a; toSel.value=b2; }
+        compute();
+      });
+    }
+
+    ['linVal','linSLraw','linFIraw'].forEach(id=>{ const el=$('#'+id,card); el && el.addEventListener('input',compute); });
+    [fromSel,toSel,slTo,fiTo,precInp,modeSel].forEach(s=>s.addEventListener('change',()=>{ showMode(modeSel.value); compute(); }));
+    $('#linSwap',card).onclick=()=>{ if(modeSel.value!=='single') return; const a=fromSel.value; fromSel.value=toSel.value; toSel.value=a; compute(); };
+
+    renderHistory(ls.get(histKey('linear'),[])); compute();
+  }
+  return {ui};
+})();
+
+/* ===== Area ===== */
+// Fix: vaar = 9 ft²; add brass = 100 ft²
+const Area = (()=>{ 
+  const FT2 = .09290304;
+  const toM2={
+    m2:1, km2:1e6, hectare:1e4, acre:4046.8564224,
+    ft2:FT2, yd2:.83612736,
+    vaar: 9*FT2,
+    guntha:101.17,
+    small_vigha:1618.72, // 16 guntha
+    vigha:2428.08,       // 24 guntha
+    are:100,
+    brass: 100*FT2       // per request
+  };
+  const units=Object.keys(toM2);
+
+  // guntha per vigha mapping for pair inputs
+  const G_PER = { small_vigha:16, vigha:24 };
+
+  function ui(card){
+    card.innerHTML=`
+      <div class="row">
+        <div class="input"><label>Value</label><input id="aVal" inputmode="decimal" placeholder="e.g., 1000"></div>
+        <div class="select"><label>From</label><select id="aFrom"></select></div>
+        <button class="btn sm swap" id="aSwap" title="Swap">⇄</button>
+        <div class="select"><label>To</label><select id="aTo"></select></div>
+        <div class="input"><label>Precision</label><input id="aPrec" type="number" min="0" max="9" step="1" value="6"></div>
+      </div>
+      <div class="result" id="aRes"><div class="val" id="aOut">—</div></div>
+      <div class="note" id="aNote"></div>
+      <div class="row"><small class="muted">History (last 5 pairs)</small></div>
+      <div class="chips" id="aHist"></div>`;
+    const fromSel=$('#aFrom',card), toSel=$('#aTo',card), val=$('#aVal',card), dec=$('#aPrec',card);
+    fromSel.innerHTML=units.map(u=>`<option value="${u}">${u}</option>`).join(''); toSel.innerHTML=fromSel.innerHTML;
+    const last=ls.get(lastKey('area'),{from:'m2',to:'acre',prec:6}); fromSel.value=last.from; toSel.value=last.to; dec.value=String(last.prec||6);
+    const res=$('#aRes',card), out=$('#aOut',card); res.appendChild(copyBtn(out));
+    const histWrap=$('#aHist',card), note=$('#aNote',card);
+
+    const parsePair=(s)=>{ const m=(s||'').trim().split(/[-\s]+/); return [ +m[0]||0, +m[1]||0 ]; };
+
+    function compute(){
+      const f=fromSel.value, t=toSel.value, d=+dec.value;
+      let vtxt=(val.value||'').trim(); let m2;
+      if((f in G_PER) && /-/.test(vtxt)){ // A-B for Vigha–Guntha
+        let [A,B]=parsePair(vtxt); const per=G_PER[f];
+        if(B>=per){ A+=Math.floor(B/per); B=B%per; val.value=`${A}-${B}`; }
+        const oneV = toM2[f];
+        const oneG = oneV / per;
+        m2 = A*oneV + B*oneG;
+      }else{
+        const v=parseFloat(vtxt.replace(/,/g,'')); if(!isFinite(v)){ setText(out,'—'); return; }
+        m2 = v*toM2[f];
+      }
+      const ans=m2/toM2[t];
+      setText(out,numFmt(ans,d));
+      // dynamic factor line
+      const fac = toM2[f]/toM2[t];
+      note.textContent = `1 ${f} = ${numFmt(fac,9)} ${t}`;
+      runFX(res);
+      const hx=pushHistory('area',{ts:Date.now(),pair:`${f}→${t}`}); renderHistory(hx);
+      ls.set(lastKey('area'),{from:f,to:t,prec:d});
+    }
+    function renderHistory(list){
+      histWrap.innerHTML=list.map(h=>`<button class="chip">${h.pair}</button>`).join('');
+      $$('button.chip',histWrap).forEach((b,i)=>{ b.onclick=()=>{ const [a,b2]=list[i].pair.split('→'); fromSel.value=a; toSel.value=b2; compute(); }; });
+    }
+    $('#aSwap',card).onclick=()=>{ const a=fromSel.value; fromSel.value=toSel.value; toSel.value=a; compute(); };
+    [fromSel,toSel,dec].forEach(s=>s.addEventListener('change',compute)); val.addEventListener('input',compute);
+    renderHistory(ls.get(histKey('area'),[])); compute();
+  }
+  return {ui};
+})();
+
+/* ===== Volume ===== */
+// Fix Brass precisely to 100 ft³
+const Volume = (()=>{ 
+  const toM3={
+    m3:1, L:.001, MLt:1000, km3:1e9,
+    ft3:.028316846592,
+    brass: 100*.028316846592 // 100 ft³
+  };
+  const units=Object.keys(toM3);
+  function ui(card){
+    card.innerHTML=`
+      <div class="row">
+        <div class="input"><label>Value</label><input id="vVal" inputmode="decimal" placeholder="e.g., 1"></div>
+        <div class="select"><label>From</label><select id="vFrom"></select></div>
+        <button class="btn sm swap" id="vSwap" title="Swap">⇄</button>
+        <div class="select"><label>To</label><select id="vTo"></select></div>
+        <div class="input"><label>Precision</label><input id="vPrec" type="number" min="0" max="9" step="1" value="6"></div>
+      </div>
+      <div class="result" id="vRes"><div class="val" id="vOut">—</div></div>
+      <div class="note" id="vNote"></div>
+      <div class="row"><small class="muted">History (last 5 pairs)</small></div>
+      <div class="chips" id="vHist"></div>`;
+    const fromSel=$('#vFrom',card), toSel=$('#vTo',card), val=$('#vVal',card), dec=$('#vPrec',card);
+    fromSel.innerHTML=units.map(u=>`<option value="${u}">${u}</option>`).join(''); toSel.innerHTML=fromSel.innerHTML;
+    const last=ls.get(lastKey('volume'),{from:'m3',to:'L',prec:6}); fromSel.value=last.from; toSel.value=last.to; dec.value=String(last.prec||6);
+    const res=$('#vRes',card), out=$('#vOut',card); res.appendChild(copyBtn(out));
+    const histWrap=$('#vHist',card), note=$('#vNote',card);
+    function compute(){
+      const v=parseFloat((val.value||'').replace(/,/g,'')); if(!isFinite(v)){ setText(out,'—'); return; }
+      const m3=v*toM3[fromSel.value]; const ans=m3/toM3[toSel.value];
+      setText(out,numFmt(ans,+dec.value));
+      const fac = toM3[fromSel.value]/toM3[toSel.value];
+      note.textContent = `1 ${fromSel.value} = ${numFmt(fac,9)} ${toSel.value}`;
+      runFX(res);
+      const hx=pushHistory('volume',{ts:Date.now(),pair:`${fromSel.value}→${toSel.value}`}); renderHistory(hx);
+      ls.set(lastKey('volume'),{from:fromSel.value,to:toSel.value,prec:+dec.value});
+    }
+    function renderHistory(list){
+      histWrap.innerHTML=list.map(h=>`<button class="chip">${h.pair}</button>`).join('');
+      $$('button.chip',histWrap).forEach((b,i)=>b.onclick=()=>{ const [a,b2]=list[i].pair.split('→'); fromSel.value=a; toSel.value=b2; compute(); });
+    }
+    $('#vSwap',card).onclick=()=>{ const a=fromSel.value; fromSel.value=toSel.value; toSel.value=a; compute(); };
+    [fromSel,toSel,dec].forEach(s=>s.addEventListener('change',compute)); val.addEventListener('input',compute);
+    renderHistory(ls.get(histKey('volume'),[])); compute();
+  }
+  return {ui};
+})();
+
+/* ===== Slope (triangle + sentence) ===== */
+const Slope = (()=>{ 
+  function ui(card){
+    card.innerHTML=`
+      <div class="row">
+        <div class="input"><label>Degrees (°)</label><input id="sDeg" inputmode="decimal" placeholder="e.g., 5"></div>
+        <div class="input"><label>Percent (%)</label><input id="sPct" inputmode="decimal" placeholder="e.g., 2"></div>
+        <div class="input"><label>Ratio (1 in N)</label><input id="sN" inputmode="decimal" placeholder="e.g., 400"></div>
+        <div class="input"><label>Precision</label><input id="sPrec" type="number" min="0" max="9" step="1" value="6"></div>
+      </div>
+      <div class="result" id="sRes"><div class="val" id="sOut">—</div></div>
+      <svg id="sTri" viewBox="0 0 300 160" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="sExplain" class="small"></div>
+      <div class="row"><small class="muted">History (last 5)</small></div>
+      <div class="chips" id="sHist"></div>`;
+    const deg=$('#sDeg',card), pct=$('#sPct',card), N=$('#sN',card), dec=$('#sPrec',card);
+    const res=$('#sRes',card), out=$('#sOut',card); res.appendChild(copyBtn(out));
+    const svg=$('#sTri',card), explain=$('#sExplain',card); const histWrap=$('#sHist',card);
+
+    function drawTriangle(n){ svg.innerHTML=''; if(!isFinite(n)||n<=0) return;
+      const run=240, rise=Math.min(100, run/n), baseY=130, baseX=30;
+      const pts=[[baseX,baseY],[baseX+run,baseY],[baseX,baseY-rise]].map(p=>p.join(',')).join(' ');
+      const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      poly.setAttribute('points',pts); poly.setAttribute('fill','rgba(47,125,225,.15)'); poly.setAttribute('stroke','rgba(47,125,225,.9)'); poly.setAttribute('stroke-width','2'); svg.appendChild(poly);
+    }
+    const sentence=n=>!isFinite(n)||n<=0?'':`At 1:${numFmt(n,0)} slope, for every ${numFmt(n,0)} units horizontally, elevation changes by 1 unit.`;
+    function fromDeg(){ const d=parseFloat(deg.value); if(!isFinite(d)){ setText(out,'—'); return; }
+      const p=Math.tan(d*Math.PI/180)*100; const n=1/Math.tan(d*Math.PI/180);
+      pct.value=numFmt(p,+dec.value); N.value=numFmt(n,+dec.value); setText(out,`${numFmt(d,+dec.value)}° = ${numFmt(p,+dec.value)} % = 1 in ${numFmt(n,+dec.value)}`);
+      drawTriangle(n); explain.textContent=sentence(n); pushHistory('slope',{ts:Date.now(),pair:`deg:${deg.value}`}); runFX(res); }
+    function fromPct(){ const p=parseFloat(pct.value); if(!isFinite(p)){ setText(out,'—'); return; }
+      const d=Math.atan(p/100)*180/Math.PI; const n=100/p;
+      deg.value=numFmt(d,+dec.value); N.value=numFmt(n,+dec.value); setText(out,`${numFmt(d,+dec.value)}° = ${numFmt(p,+dec.value)} % = 1 in ${numFmt(n,+dec.value)}`);
+      drawTriangle(n); explain.textContent=sentence(n); pushHistory('slope',{ts:Date.now(),pair:`%:${pct.value}`}); runFX(res); }
+    function fromN(){ const n=parseFloat(N.value); if(!isFinite(n)||n===0){ setText(out,'—'); return; }
+      const d=Math.atan(1/n)*180/Math.PI; const p=100/n;
+      deg.value=numFmt(d,+dec.value); pct.value=numFmt(p,+dec.value); setText(out,`${numFmt(d,+dec.value)}° = ${numFmt(p,+dec.value)} % = 1 in ${numFmt(n,+dec.value)}`);
+      drawTriangle(n); explain.textContent=sentence(n); pushHistory('slope',{ts:Date.now(),pair:`N:${N.value}`}); runFX(res); }
+    deg.addEventListener('input',fromDeg); pct.addEventListener('input',fromPct); N.addEventListener('input',fromN);
+    const prev=ls.get(histKey('slope'),[]); histWrap.innerHTML=prev.map(h=>`<button class="chip">${h.pair}</button>`).join('');
+  }
+  return {ui};
+})();
+
+/* ===== Registry + boot ===== */
+const modules={ linear:Linear, area:Area, volume:Volume, slope:Slope };
+function openCard(card){ const wasOpen=card.classList.contains('open'); $$('.card').forEach(c=>c.classList.remove('open')); if(!wasOpen){ card.classList.add('open'); const body=$('.card-body',card); if(!body.dataset.ready){ modules[card.dataset.mod].ui(body); body.dataset.ready=1; } } }
+theme.init();
+$$('.card .card-hd').forEach(hd=>hd.addEventListener('click', ()=>openCard(hd.parentElement)));
+const first=$('.card'); if(first) openCard(first);
+</script>
+</body>
+</html>
