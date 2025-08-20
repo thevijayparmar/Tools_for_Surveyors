@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Area Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .light {
+            background-color: #f7fafc;
+            color: #2d3748;
+        }
+        .card {
+            background-color: var(--card-bg);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: background-color 0.3s, transform 0.2s;
+            transform-origin: center;
+        }
+        .card:hover {
+            transform: scale(1.03);
+        }
+        .dark .card {
+            --card-bg: #2d3748;
+        }
+        .light .card {
+            --card-bg: #ffffff;
+        }
+        input {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #4c51bf;
+            box-shadow: 0 0 0 3px rgba(76, 81, 191, 0.3);
+        }
+        .dark input {
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border-color: #4a5568;
+        }
+        .light input {
+            background-color: #edf2f7;
+            color: #2d3748;
+            border-color: #e2e8f0;
+        }
+        .result-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80px;
+        }
+        .sparkle-effect {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .sparkle {
+            position: absolute;
+            background-color: #ffcc00;
+            border-radius: 50%;
+            opacity: 0;
+            animation: sparkle-animation 1s ease-out forwards;
+        }
+        @keyframes sparkle-animation {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="light">
+
+    <div class="min-h-screen flex flex-col items-center py-12 px-4">
+        <!-- Header -->
+        <header class="w-full max-w-4xl text-center mb-10">
+            <div class="flex justify-between items-center">
+                <h1 class="text-4xl font-extrabold text-blue-600 dark:text-blue-400">Shape Area Calculator</h1>
+                <button id="theme-toggle" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 transition-colors">
+                    <svg id="sun-icon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <svg id="moon-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+            <p class="mt-2 text-gray-600 dark:text-gray-400">Find the area of various 2D shapes easily.</p>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <!-- Square Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Square</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = x²</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-24 h-24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="15" y="15" width="70" height="70" fill="#9f7aea" stroke="#805ad5" stroke-width="2" rx="10" />
+                            <line x1="15" y1="88" x2="85" y2="88" stroke="currentColor" stroke-width="1.5" />
+                            <text x="50" y="92" dominant-baseline="hanging" text-anchor="middle" font-size="12">x</text>
+                            <line x1="88" y1="15" x2="88" y2="85" stroke="currentColor" stroke-width="1.5" />
+                            <text x="91" y="50" dominant-baseline="middle" text-anchor="start" font-size="12">x</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="square-side" class="block text-sm font-medium">Side (x)</label>
+                            <input type="number" id="square-side" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter side length" oninput="calculateArea('square')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-square">
+                    <div class="sparkle-effect" id="sparkle-square"></div>
+                </div>
+            </div>
+
+            <!-- Rectangle Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Rectangle</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = b x h</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-32 h-24" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="15" y="25" width="90" height="50" fill="#68d391" stroke="#48bb78" stroke-width="2" rx="10" />
+                            <line x1="15" y1="80" x2="105" y2="80" stroke="currentColor" stroke-width="1.5" />
+                            <text x="60" y="85" dominant-baseline="hanging" text-anchor="middle" font-size="12">b</text>
+                            <line x1="110" y1="25" x2="110" y2="75" stroke="currentColor" stroke-width="1.5" />
+                            <text x="113" y="50" dominant-baseline="middle" text-anchor="start" font-size="12">h</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="rectangle-base" class="block text-sm font-medium">Base (b)</label>
+                            <input type="number" id="rectangle-base" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter base" oninput="calculateArea('rectangle')">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="rectangle-height" class="block text-sm font-medium">Height (h)</label>
+                            <input type="number" id="rectangle-height" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter height" oninput="calculateArea('rectangle')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-rectangle">
+                    <div class="sparkle-effect" id="sparkle-rectangle"></div>
+                </div>
+            </div>
+
+            <!-- Triangle Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Triangle</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = 1/2 b x h</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-32 h-24" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                            <polygon points="60,15 15,85 105,85" fill="#4fd1c5" stroke="#38b2ac" stroke-width="2" rx="10" />
+                            <line x1="15" y1="90" x2="105" y2="90" stroke="currentColor" stroke-width="1.5" />
+                            <text x="60" y="93" dominant-baseline="hanging" text-anchor="middle" font-size="12">b</text>
+                            <line x1="60" y1="15" x2="60" y2="85" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4" />
+                            <text x="63" y="50" dominant-baseline="middle" text-anchor="start" font-size="12">h</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="triangle-base" class="block text-sm font-medium">Base (b)</label>
+                            <input type="number" id="triangle-base" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter base" oninput="calculateArea('triangle')">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="triangle-height" class="block text-sm font-medium">Height (h)</label>
+                            <input type="number" id="triangle-height" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter height" oninput="calculateArea('triangle')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-triangle">
+                    <div class="sparkle-effect" id="sparkle-triangle"></div>
+                </div>
+            </div>
+
+            <!-- Circle Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Circle</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = πr²</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-24 h-24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="50" cy="50" r="40" fill="#f6e05e" stroke="#ecc94b" stroke-width="2" />
+                            <line x1="50" y1="50" x2="90" y2="50" stroke="currentColor" stroke-width="1.5" />
+                            <text x="70" y="45" dominant-baseline="auto" text-anchor="middle" font-size="12">r</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="circle-radius" class="block text-sm font-medium">Radius (r)</label>
+                            <input type="number" id="circle-radius" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter radius" oninput="calculateArea('circle')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-circle">
+                    <div class="sparkle-effect" id="sparkle-circle"></div>
+                </div>
+            </div>
+
+            <!-- Trapezoid Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Trapezoid</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = 1/2(a+b)h</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-32 h-24" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                            <polygon points="30,25 90,25 105,75 15,75" fill="#d53f8c" stroke="#b83280" stroke-width="2" rx="10" />
+                            <line x1="30" y1="20" x2="90" y2="20" stroke="currentColor" stroke-width="1.5" />
+                            <text x="60" y="17" dominant-baseline="auto" text-anchor="middle" font-size="12">a</text>
+                            <line x1="15" y1="80" x2="105" y2="80" stroke="currentColor" stroke-width="1.5" />
+                            <text x="60" y="83" dominant-baseline="hanging" text-anchor="middle" font-size="12">b</text>
+                            <line x1="110" y1="25" x2="110" y2="75" stroke="currentColor" stroke-width="1.5" />
+                            <text x="113" y="50" dominant-baseline="middle" text-anchor="start" font-size="12">h</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="trapezoid-side-a" class="block text-sm font-medium">Side a</label>
+                            <input type="number" id="trapezoid-side-a" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter side a" oninput="calculateArea('trapezoid')">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="trapezoid-side-b" class="block text-sm font-medium">Side b</label>
+                            <input type="number" id="trapezoid-side-b" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter side b" oninput="calculateArea('trapezoid')">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="trapezoid-height" class="block text-sm font-medium">Height (h)</label>
+                            <input type="number" id="trapezoid-height" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter height" oninput="calculateArea('trapezoid')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-trapezoid">
+                    <div class="sparkle-effect" id="sparkle-trapezoid"></div>
+                </div>
+            </div>
+
+            <!-- Parallelogram Card -->
+            <div class="card p-6 rounded-2xl flex flex-col justify-between transform transition-transform duration-300">
+                <div>
+                    <h2 class="text-2xl font-bold mb-4">Parallelogram</h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Formula: A = b x h</p>
+                    <div class="w-full flex justify-center mb-4">
+                        <svg class="w-32 h-24" viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+                            <polygon points="25,25 105,25 85,75 5,75" fill="#a0aec0" stroke="#718096" stroke-width="2" rx="10" />
+                            <line x1="5" y1="80" x2="85" y2="80" stroke="currentColor" stroke-width="1.5" />
+                            <text x="45" y="83" dominant-baseline="hanging" text-anchor="middle" font-size="12">b</text>
+                            <line x1="90" y1="25" x2="90" y2="75" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4" />
+                            <text x="93" y="50" dominant-baseline="middle" text-anchor="start" font-size="12">h</text>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col">
+                            <label for="parallelogram-base" class="block text-sm font-medium">Base (b)</label>
+                            <input type="number" id="parallelogram-base" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter base" oninput="calculateArea('parallelogram')">
+                        </div>
+                        <div class="flex flex-col">
+                            <label for="parallelogram-height" class="block text-sm font-medium">Height (h)</label>
+                            <input type="number" id="parallelogram-height" class="mt-1 block w-full px-3 py-2 rounded-lg border-2" placeholder="Enter height" oninput="calculateArea('parallelogram')">
+                        </div>
+                    </div>
+                </div>
+                <div class="result-container mt-6" id="result-parallelogram">
+                    <div class="sparkle-effect" id="sparkle-parallelogram"></div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="w-full text-right mt-12 px-4">
+            <p class="text-sm text-gray-500 dark:text-gray-400">© Vijay Parmar</p>
+        </footer>
+    </div>
+
+    <script>
+        // Constants for PI and the theme toggle button
+        const PI = Math.PI;
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+
+        /**
+         * Toggles between dark and light themes.
+         */
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark');
+            body.classList.toggle('light');
+            
+            // Update the icon based on the current theme
+            if (body.classList.contains('dark')) {
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+            } else {
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+            }
+        });
+
+        /**
+         * Calculates the area for a given shape and displays the result with a sparkle effect.
+         * @param {string} shape - The name of the shape (e.g., 'square', 'circle').
+         */
+        function calculateArea(shape) {
+            let area;
+            let resultElement = document.getElementById(`result-${shape}`);
+            let sparkleElement = document.getElementById(`sparkle-${shape}`);
+            let hasValidInput = true;
+
+            // Clear previous result and sparkles
+            resultElement.innerHTML = `<div class="sparkle-effect" id="sparkle-${shape}"></div>`;
+            sparkleElement = document.getElementById(`sparkle-${shape}`);
+
+            try {
+                // Determine the calculation based on the shape
+                switch (shape) {
+                    case 'square':
+                        const side = parseFloat(document.getElementById('square-side').value);
+                        if (isNaN(side) || side <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter a positive number.");
+                        }
+                        area = side * side;
+                        break;
+                    case 'rectangle':
+                        const baseRect = parseFloat(document.getElementById('rectangle-base').value);
+                        const heightRect = parseFloat(document.getElementById('rectangle-height').value);
+                        if (isNaN(baseRect) || isNaN(heightRect) || baseRect <= 0 || heightRect <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter positive numbers for both base and height.");
+                        }
+                        area = baseRect * heightRect;
+                        break;
+                    case 'triangle':
+                        const baseTri = parseFloat(document.getElementById('triangle-base').value);
+                        const heightTri = parseFloat(document.getElementById('triangle-height').value);
+                        if (isNaN(baseTri) || isNaN(heightTri) || baseTri <= 0 || heightTri <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter positive numbers for both base and height.");
+                        }
+                        area = 0.5 * baseTri * heightTri;
+                        break;
+                    case 'circle':
+                        const radius = parseFloat(document.getElementById('circle-radius').value);
+                        if (isNaN(radius) || radius <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter a positive number.");
+                        }
+                        area = PI * radius * radius;
+                        break;
+                    case 'trapezoid':
+                        const sideA = parseFloat(document.getElementById('trapezoid-side-a').value);
+                        const sideB = parseFloat(document.getElementById('trapezoid-side-b').value);
+                        const heightTrap = parseFloat(document.getElementById('trapezoid-height').value);
+                        if (isNaN(sideA) || isNaN(sideB) || isNaN(heightTrap) || sideA <= 0 || sideB <= 0 || heightTrap <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter positive numbers for all fields.");
+                        }
+                        area = 0.5 * (sideA + sideB) * heightTrap;
+                        break;
+                    case 'parallelogram':
+                        const basePara = parseFloat(document.getElementById('parallelogram-base').value);
+                        const heightPara = parseFloat(document.getElementById('parallelogram-height').value);
+                        if (isNaN(basePara) || isNaN(heightPara) || basePara <= 0 || heightPara <= 0) {
+                            hasValidInput = false;
+                            throw new Error("Invalid input. Please enter positive numbers for both base and height.");
+                        }
+                        area = basePara * heightPara;
+                        break;
+                }
+                
+                if (hasValidInput) {
+                    // Display the result
+                    resultElement.innerHTML = `<div class="text-5xl font-extrabold text-blue-600 dark:text-blue-400 animate-pulse">${area.toFixed(2)}</div>`;
+                    
+                    // Trigger sparkle effect
+                    createSparkles(sparkleElement, 20);
+                } else {
+                    resultElement.innerHTML = ''; // Clear result if input is invalid
+                }
+
+            } catch (error) {
+                resultElement.innerHTML = `<div class="text-sm text-red-500 text-center font-medium">${error.message}</div>`;
+            }
+        }
+
+        /**
+         * Creates a specified number of sparkle elements.
+         * @param {HTMLElement} container - The container for the sparkles.
+         * @param {number} count - The number of sparkles to create.
+         */
+        function createSparkles(container, count) {
+            for (let i = 0; i < count; i++) {
+                const sparkle = document.createElement('div');
+                sparkle.className = 'sparkle';
+                const size = Math.random() * 8 + 2; // Sparkle size between 2 and 10px
+                const x = Math.random() * 100; // Random x position percentage
+                const y = Math.random() * 100; // Random y position percentage
+                const duration = Math.random() * 0.5 + 0.5; // Random animation duration
+
+                sparkle.style.width = `${size}px`;
+                sparkle.style.height = `${size}px`;
+                sparkle.style.left = `${x}%`;
+                sparkle.style.top = `${y}%`;
+                sparkle.style.animationDuration = `${duration}s`;
+                
+                container.appendChild(sparkle);
+
+                // Remove the sparkle element after its animation is done
+                setTimeout(() => {
+                    sparkle.remove();
+                }, duration * 1000);
+            }
+        }
+
+        // Add event listeners for all input fields to trigger calculation
+        document.querySelectorAll('input[type="number"]').forEach(input => {
+            input.addEventListener('input', (event) => {
+                const shape = event.target.id.split('-')[0];
+                calculateArea(shape);
+            });
+        });
+
+    </script>
+</body>
+</html>

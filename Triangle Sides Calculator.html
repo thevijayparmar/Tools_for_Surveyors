@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Right‑Angle Triangle Field Calculator</title>
+<style>
+  :root{
+    --bg:#f7f9fc; --card:#ffffff; --fg:#0c1222; --muted:#6a7080; --ring:#6aa3ff;
+    --accent:#ffd54d; --accent-dark:#b38a00; --ok:#2563eb; --ok-weak:#3b82f6; --sky:#6aa3ff;
+    --error:#ff5a5a; --tri-glow:0 0 16px rgba(255,221,80,.55);
+    --recent-bg:#eaffea; --recent-bd:#9edb9e; --calc-bg:#eaf0ff; --calc-bd:#a7c4ff;
+  }
+  [data-theme="dark"]{
+    --bg:#0d1117; --card:#101826; --fg:#e6eaf3; --muted:#9aa3b2; --ring:#7ab0ff;
+    --accent:#ffe082; --accent-dark:#b38a00; --ok:#60a5fa; --ok-weak:#93c5fd; --sky:#7ab0ff;
+    --error:#ff6b6b; --tri-glow:0 0 20px rgba(255,221,120,.55);
+    --recent-bg:#16351a; --recent-bd:#2aa84a; --calc-bg:#12203a; --calc-bd:#5e8bff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:500 14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .container{max-width:900px;margin:20px auto;padding:0 14px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .title{display:flex;align-items:center;gap:10px}
+  .title h1{margin:0;font-size:18px;font-weight:800}
+  .small{color:var(--muted)}
+  .btn{border:0;border-radius:999px;background:var(--card);color:var(--fg);box-shadow:0 10px 26px rgba(0,0,0,.08);padding:7px 12px;cursor:pointer;font-weight:700;outline:2px solid transparent;outline-offset:2px}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:focus-visible{outline-color:var(--ring)}
+  .btn.sm{padding:5px 9px;border-radius:12px;font-size:12px}
+
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(12,1fr)}
+  .card{grid-column:1/-1;background:var(--card);border-radius:16px;box-shadow:0 10px 26px rgba(0,0,0,.08);padding:14px}
+  .section-title{margin:0 0 8px;font-size:15px}
+
+  label{font-size:11px;color:var(--muted);display:block;margin:0 0 3px}
+  input{width:100%;padding:10px 11px;border-radius:12px;border:1px solid rgba(120,120,140,.25);background:transparent;color:var(--fg);font-size:14px;transition:background-color .25s,border-color .25s,box-shadow .25s}
+  .row{display:flex;flex-wrap:wrap;gap:10px}
+  .col{flex:1 1 180px}
+  /* Recent & computed input highlights */
+  input.recent{background:var(--recent-bg);border-color:var(--recent-bd);box-shadow:0 0 0 2px color-mix(in srgb, var(--recent-bd) 20%, transparent)}
+  input.computedField{background:var(--calc-bg);border-color:var(--calc-bd);box-shadow:0 0 0 2px color-mix(in srgb, var(--calc-bd) 22%, transparent)}
+
+  /* Chips */
+  .chip{position:relative;display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:8px 10px;background:rgba(127,127,150,.08);border:1px solid rgba(127,127,150,.22)}
+  .chip .val{font-weight:800}
+  .chip.computed .val{color:var(--ok)} /* stays blue until next input */
+
+  .chip.err{border-color:var(--error);background:rgba(255,90,90,.08);color:var(--error);box-shadow:0 0 10px rgba(255,90,90,.25)}
+
+  /* Flash + sky-blue sparks for 5s */
+  .chip.computed.flash5{animation:flashBlue 5s ease-out}
+  @keyframes flashBlue{0%{background:linear-gradient(115deg,rgba(106,163,255,.35),transparent 42%)}100%{background:rgba(127,127,150,.08)}}
+  .sparks{position:absolute;left:4px;bottom:-6px;width:150px;height:30px;pointer-events:none}
+  .sparkB{position:absolute;width:8px;height:8px;border-radius:999px;background:radial-gradient(circle, rgba(106,163,255,.95), rgba(106,163,255,0) 70%);opacity:.95;animation:sparkUp 5s ease-out forwards}
+  @keyframes sparkUp{0%{transform:translateY(0) scale(1);opacity:.95}100%{transform:translateY(-24px) scale(.6);opacity:0}}
+
+  /* SVG board */
+  .board{position:relative;background:linear-gradient(180deg, rgba(127,127,150,.04), transparent);border-radius:16px;padding:8px}
+  svg{width:100%;height:340px;display:block;background:transparent;border-radius:12px}
+  .tri{stroke:var(--accent-dark);stroke-width:3;fill:rgba(255,235,120,.18);filter:drop-shadow(var(--tri-glow))} /* light yellow glow + dark yellow border */
+  .side{stroke:var(--accent-dark);stroke-width:4}
+  .side.computed{stroke:var(--sky);filter:drop-shadow(0 0 10px rgba(106,163,255,.8));}
+  .right-mark{fill:rgba(255,215,0,.9);stroke:var(--accent-dark);stroke-width:2}
+  .lbl{font:700 12px ui-sans-serif,system-ui,Segoe UI;fill:var(--fg)}
+  .ang{font:800 12px ui-sans-serif,system-ui,Segoe UI;fill:var(--ok)}
+
+  /* Formula box */
+  .formula{background:rgba(127,127,150,.08);border:1px solid rgba(127,127,150,.22);border-radius:12px;padding:10px;margin-top:10px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;white-space:pre-wrap}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+
+  /* Footer credit */
+  .credit{position:fixed;right:12px;bottom:10px;color:var(--muted);font-size:12px;user-select:none}
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title"><span>📐</span><h1>Right‑Angle Triangle Field Calculator</h1><span class="small">Enter any two sides → get the third, angles, and a live sketch</span></div>
+      <button id="themeBtn" class="btn sm" aria-pressed="false" aria-label="Toggle theme"><span class="ico">🌞</span> <span class="lab">Light</span></button>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2 class="section-title">Inputs</h2>
+        <div class="row">
+          <div class="col">
+            <label for="base">Base (a)</label>
+            <input id="base" type="number" step="any" min="0" placeholder="e.g., 6" />
+          </div>
+          <div class="col">
+            <label for="height">Height (b)</label>
+            <input id="height" type="number" step="any" min="0" placeholder="e.g., 8" />
+          </div>
+          <div class="col">
+            <label for="hyp">Hypotenuse (c)</label>
+            <input id="hyp" type="number" step="any" min="0" placeholder="e.g., 10" />
+          </div>
+        </div>
+        <div id="hint" class="small" style="margin-top:4px;color:var(--muted)">Tip: The tool uses the <b>two most recent</b> entries and calculates the third automatically.</div>
+        <div class="row" style="margin-top:8px"><div id="errChip" class="chip err" hidden>⚠️ <span class="val" id="errMsg">Invalid / incomplete inputs</span></div></div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Results</h2>
+        <div class="row" style="gap:12px;flex-wrap:wrap">
+          <div class="chip" id="chipA"><span class="mono">Base (a)</span> <span class="val" id="outA">—</span>
+            <div class="sparks" hidden>
+              <div class="sparkB" style="left:0%"></div>
+              <div class="sparkB" style="left:18%;animation-delay:.2s"></div>
+              <div class="sparkB" style="left:36%;animation-delay:.4s"></div>
+              <div class="sparkB" style="left:54%;animation-delay:.6s"></div>
+              <div class="sparkB" style="left:72%;animation-delay:.8s"></div>
+              <div class="sparkB" style="left:90%;animation-delay:1s"></div>
+            </div>
+          </div>
+          <div class="chip" id="chipB"><span class="mono">Height (b)</span> <span class="val" id="outB">—</span>
+            <div class="sparks" hidden>
+              <div class="sparkB" style="left:0%"></div>
+              <div class="sparkB" style="left:18%;animation-delay:.2s"></div>
+              <div class="sparkB" style="left:36%;animation-delay:.4s"></div>
+              <div class="sparkB" style="left:54%;animation-delay:.6s"></div>
+              <div class="sparkB" style="left:72%;animation-delay:.8s"></div>
+              <div class="sparkB" style="left:90%;animation-delay:1s"></div>
+            </div>
+          </div>
+          <div class="chip" id="chipC"><span class="mono">Hypotenuse (c)</span> <span class="val" id="outC">—</span>
+            <div class="sparks" hidden>
+              <div class="sparkB" style="left:0%"></div>
+              <div class="sparkB" style="left:18%;animation-delay:.2s"></div>
+              <div class="sparkB" style="left:36%;animation-delay:.4s"></div>
+              <div class="sparkB" style="left:54%;animation-delay:.6s"></div>
+              <div class="sparkB" style="left:72%;animation-delay:.8s"></div>
+              <div class="sparkB" style="left:90%;animation-delay:1s"></div>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="chip"><span class="mono">∠ at base (θ)</span> <span class="val" id="angBase">—</span></div>
+          <div class="chip"><span class="mono">∠ at height (φ)</span> <span class="val" id="angHeight">—</span></div>
+          <div class="chip"><span class="mono">Right angle</span> <span class="val">90°</span></div>
+        </div>
+        <div class="board" style="margin-top:10px">
+          <svg id="svg" viewBox="0 0 420 280" aria-label="Triangle sketch">
+            <g id="triG">
+              <polygon id="triFill" class="tri" points="40,240 360,240 40,40"/>
+              <line id="sideA" class="side" x1="40" y1="240" x2="360" y2="240" />
+              <line id="sideB" class="side" x1="40" y1="240" x2="40" y2="40" />
+              <line id="sideC" class="side" x1="360" y1="240" x2="40" y2="40" />
+              <path id="rmark" class="right-mark" d="M40 240 h18 v-18 h-18 z" />
+              <text id="lblA" class="lbl" x="200" y="258" text-anchor="middle">a = —</text>
+              <text id="lblB" class="lbl" x="60" y="140" text-anchor="start" transform-origin="60 140">b = —</text>
+              <text id="lblC" class="lbl" x="200" y="130" text-anchor="middle">c = —</text>
+              <text id="lblAngA" class="ang" x="340" y="230" text-anchor="end">θ = —</text>
+              <text id="lblAngB" class="ang" x="56" y="58" text-anchor="start">φ = —</text>
+              <text class="ang" x="54" y="232" text-anchor="start">90°</text>
+            </g>
+          </svg>
+        </div>
+        <div id="formula" class="formula">Provide any two sides to calculate the third side and angles.
+Formula: —
+Substitution: —
+Calculation: —
+Result: —</div>
+      </section>
+    </div>
+  </div>
+
+  <div class="credit">© Vijay Parmar</div>
+
+<script>
+  // === Theme toggle ===
+  const themeBtn = document.getElementById('themeBtn');
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    themeBtn.setAttribute('aria-pressed', t==='dark');
+    themeBtn.querySelector('.lab').textContent = t==='dark' ? 'Dark' : 'Light';
+    themeBtn.querySelector('.ico').textContent = t==='dark' ? '🌙' : '🌞';
+    localStorage.setItem('tri.theme', t);
+  }
+  setTheme(localStorage.getItem('tri.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  themeBtn.onclick = ()=> setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+
+  // === Inputs ===
+  const baseEl = document.getElementById('base');
+  const heightEl = document.getElementById('height');
+  const hypEl = document.getElementById('hyp');
+  const inputEls = {a:baseEl, b:heightEl, c:hypEl};
+
+  // === Outputs (chips) ===
+  const chipA = document.getElementById('chipA');
+  const chipB = document.getElementById('chipB');
+  const chipC = document.getElementById('chipC');
+  const outA = document.getElementById('outA');
+  const outB = document.getElementById('outB');
+  const outC = document.getElementById('outC');
+  const angBase = document.getElementById('angBase');
+  const angHeight = document.getElementById('angHeight');
+
+  // === SVG elements ===
+  const triFill = document.getElementById('triFill');
+  const sideA = document.getElementById('sideA');
+  const sideB = document.getElementById('sideB');
+  const sideC = document.getElementById('sideC');
+  const lblA = document.getElementById('lblA');
+  const lblB = document.getElementById('lblB');
+  const lblC = document.getElementById('lblC');
+  const lblAngA = document.getElementById('lblAngA');
+  const lblAngB = document.getElementById('lblAngB');
+
+  const formulaBox = document.getElementById('formula');
+  const errChip = document.getElementById('errChip');
+  const errMsg  = document.getElementById('errMsg');
+
+  // Helpers
+  const fmt = (x)=>{
+    if (!isFinite(x)) return '—';
+    const r = Math.round((+x + Number.EPSILON) * 1000) / 1000; // 3 decimals
+    return (r % 1 === 0) ? r.toString() : r.toFixed(3);
+  };
+  const isPos = (n)=> typeof n==='number' && isFinite(n) && n>0;
+  const val = (el)=>{ const v = parseFloat(el.value); return isFinite(v)? v : NaN; };
+
+  // Track most-recent two inputs
+  let stamp = 0; const last = {a:0,b:0,c:0};
+  function mark(k, has){ last[k] = has? (++stamp) : 0; }
+
+  function clearComputedStyles(){
+    [chipA,chipB,chipC].forEach(ch=>{ ch.classList.remove('computed','flash5'); const sp=ch.querySelector('.sparks'); if(sp) sp.hidden = true; });
+    [sideA,sideB,sideC].forEach(s=> s.classList.remove('computed'));
+  }
+  function flashComputed(chip, side){
+    chip.classList.add('computed','flash5');
+    const sp = chip.querySelector('.sparks'); if(sp){ sp.hidden=false; setTimeout(()=>{chip.classList.remove('flash5'); sp.hidden=true;}, 5000); }
+    if (side) side.classList.add('computed');
+  }
+
+  function showError(msg){
+    errMsg.textContent = msg; errChip.hidden = false;
+    angBase.textContent = '—'; angHeight.textContent = '—';
+  }
+  function hideError(){ errChip.hidden = true; }
+
+  function updateInputHighlights(topTwoKeys=[], computedKey=''){
+    // reset
+    for(const k of ['a','b','c']){ inputEls[k].classList.remove('recent','computedField'); }
+    // mark recents
+    for(const k of topTwoKeys){ if(k && inputEls[k]) inputEls[k].classList.add('recent'); }
+    // mark computed
+    if(computedKey && inputEls[computedKey]){
+      inputEls[computedKey].classList.remove('recent');
+      inputEls[computedKey].classList.add('computedField');
+    }
+  }
+
+  function compute(){
+    clearComputedStyles(); hideError();
+
+    const aIn = val(baseEl), bIn = val(heightEl), cIn = val(hypEl);
+    const aHas = isPos(aIn), bHas = isPos(bIn), cHas = isPos(cIn);
+
+    // Pick most-recent two valid entries
+    const entries = [];
+    if(aHas) entries.push({k:'a', v:aIn, t:last.a});
+    if(bHas) entries.push({k:'b', v:bIn, t:last.b});
+    if(cHas) entries.push({k:'c', v:cIn, t:last.c});
+    entries.sort((p,q)=>q.t-p.t);
+
+    let a=aIn, b=bIn, c=cIn, computed='';
+
+    if(entries.length < 2){
+      // live sketch with partial info
+      outA.textContent = aHas? fmt(a) : '—';
+      outB.textContent = bHas? fmt(b) : '—';
+      outC.textContent = cHas? fmt(c) : '—';
+      angBase.textContent = '—'; angHeight.textContent = '—';
+      // draw with whatever is present so it's live
+      const da = aHas? a : (bHas? b*0.6 : 6);
+      const db = bHas? b : (aHas? a*0.6 : 8);
+      drawTriangle( Math.max(da,1e-6), Math.max(db,1e-6) );
+      formulaBox.textContent = 'Provide any two sides to calculate the third side and angles.\nFormula: —\nSubstitution: —\nCalculation: —\nResult: —';
+      updateInputHighlights(entries.map(e=>e.k));
+      showError('Need any two sides');
+      return;
+    }
+
+    // Determine missing key among the three
+    const topTwo = [entries[0].k, entries[1].k];
+    const used = new Set(topTwo);
+    if(!used.has('a')){
+      // compute a using b and c
+      b = entries.find(e=>e.k==='b').v; c = entries.find(e=>e.k==='c').v;
+      if(!(c>b)) { showError('Invalid: hypotenuse must be longest (c>b)'); }
+      a = Math.sqrt(Math.max(0, c*c - b*b));
+      baseEl.value = fmt(a); computed='a';
+    } else if(!used.has('b')){
+      // compute b using a and c
+      a = entries.find(e=>e.k==='a').v; c = entries.find(e=>e.k==='c').v;
+      if(!(c>a)) { showError('Invalid: hypotenuse must be longest (c>a)'); }
+      b = Math.sqrt(Math.max(0, c*c - a*a));
+      heightEl.value = fmt(b); computed='b';
+    } else if(!used.has('c')){
+      // compute c using a and b
+      a = entries.find(e=>e.k==='a').v; b = entries.find(e=>e.k==='b').v;
+      c = Math.hypot(a,b);
+      hypEl.value = fmt(c); computed='c';
+    }
+
+    // angles
+    const theta = Math.atan2(b, a) * 180/Math.PI;
+    const phi   = 90 - theta;
+
+    // outputs
+    outA.textContent = fmt(a); outB.textContent = fmt(b); outC.textContent = fmt(c);
+    angBase.textContent = fmt(theta) + '°'; angHeight.textContent = fmt(phi) + '°';
+
+    // sketch
+    drawTriangle(a,b);
+
+    // labels
+    lblA.textContent = `a = ${fmt(a)}`;
+    lblB.textContent = `b = ${fmt(b)}`;
+    lblC.textContent = `c = ${fmt(c)}`;
+    lblAngA.textContent = `θ = ${fmt(theta)}°`;
+    lblAngB.textContent = `φ = ${fmt(phi)}°`;
+
+    // input highlighting
+    updateInputHighlights(topTwo, computed);
+
+    // highlight computed chip & side
+    if (computed==='a')      flashComputed(chipA, sideA);
+    else if (computed==='b') flashComputed(chipB, sideB);
+    else if (computed==='c') flashComputed(chipC, sideC);
+
+    // formula (multiline)
+    let f='';
+    if (computed==='c'){
+      f = `Formula: c² = a² + b²\nSubstitution: c² = ${fmt(a)}² + ${fmt(b)}²\nCalculation: √(${fmt(a*a)} + ${fmt(b*b)})\nResult: c = ${fmt(c)}`;
+    } else if (computed==='a'){
+      f = `Formula: a = √(c² − b²)\nSubstitution: a = √(${fmt(c)}² − ${fmt(b)}²)\nCalculation: √(${fmt(c*c)} − ${fmt(b*b)})\nResult: a = ${fmt(a)}`;
+    } else if (computed==='b'){
+      f = `Formula: b = √(c² − a²)\nSubstitution: b = √(${fmt(c)}² − ${fmt(a)}²)\nCalculation: √(${fmt(c*c)} − ${fmt(a*a)})\nResult: b = ${fmt(b)}`;
+    } else {
+      f = 'Inputs satisfy a² + b² = c²';
+    }
+    formulaBox.textContent = f;
+  }
+
+  function drawTriangle(a,b){
+    const W=420, H=280, M=40;
+    const s = Math.min((W-2*M)/Math.max(a, 1e-9), (H-2*M)/Math.max(b, 1e-9));
+    const ax=M, ay=H-M;
+    const bx=M + a*s, by=H-M;
+    const cx=M, cy=H-M - b*s;
+
+    triFill.setAttribute('points', `${ax},${ay} ${bx},${by} ${cx},${cy}`);
+    sideA.setAttribute('x1', ax); sideA.setAttribute('y1', ay); sideA.setAttribute('x2', bx); sideA.setAttribute('y2', by);
+    sideB.setAttribute('x1', ax); sideB.setAttribute('y1', ay); sideB.setAttribute('x2', cx); sideB.setAttribute('y2', cy);
+    sideC.setAttribute('x1', bx); sideC.setAttribute('y1', by); sideC.setAttribute('y2', cy); sideC.setAttribute('x2', cx);
+
+    lblA.setAttribute('x', (ax+bx)/2); lblA.setAttribute('y', by+18);
+    lblB.setAttribute('x', ax+20); lblB.setAttribute('y', (ay+cy)/2);
+    lblC.setAttribute('x', (bx+cx)/2); lblC.setAttribute('y', (by+cy)/2 - 6);
+    lblAngA.setAttribute('x', bx-20); lblAngA.setAttribute('y', by-10);
+    lblAngB.setAttribute('x', cx+16); lblAngB.setAttribute('y', cy+14);
+
+    // Right-angle marker
+    const r = Math.max(12, Math.min(24, 0.08 * Math.min((bx-ax), (ay-cy))));
+    document.getElementById('rmark').setAttribute('d', `M${ax} ${ay} h${r} v-${r} h-${r} z`);
+  }
+
+  // Bind events + stamping for recency
+  baseEl.addEventListener('input', ()=>{ mark('a', isPos(val(baseEl))); compute(); });
+  heightEl.addEventListener('input', ()=>{ mark('b', isPos(val(heightEl))); compute(); });
+  hypEl.addEventListener('input', ()=>{ mark('c', isPos(val(hypEl))); compute(); });
+
+  // Initial draw
+  compute();
+</script>
+</body>
+</html>

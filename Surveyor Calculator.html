@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Surveyor Calculator — Mobile</title>
+<style>
+  /* ==================== THEME ==================== */
+  :root{
+    --bg:#eef2f8;           /* page */
+    --shell:#f9fbff;        /* phone shell */
+    --card:#ffffff;         /* surfaces */
+    --fg:#0b1220;
+    --muted:#7a8598;
+    --accent:#6c7cff;       /* purple accent */
+    --brand:#4f7cff;        /* focus */
+    --ok:#0b1220;           /* result number */
+    --error:#ff5a5a;
+    /* Shadows tuned per request (light = 50% darker) */
+    --shadow1: 12px 16px 32px rgba(10,25,50,.15), -8px -8px 18px rgba(255,255,255,.9);
+    --shadow2: inset 8px 8px 16px rgba(10,25,50,.18), inset -8px -8px 16px rgba(255,255,255,.92);
+    --btn: linear-gradient(180deg, #ffffff, #eef3ff);
+    --btn-press: linear-gradient(180deg, #e7ebfb, #ffffff);
+    --hex:#fff7c6;          /* yellow tile tint */
+  }
+  [data-theme="dark"]{
+    --bg:#0d1117;
+    --shell:#101826;
+    --card:#0f1724;
+    --fg:#ffffff; /* force white for text */
+    --muted:#c7d0df;
+    --accent:#9aa7ff;
+    --brand:#b7c7ff;
+    --ok:#ffffff; /* plain readable */
+    --error:#ff6b6b;
+    /* Dark = 50% lighter shadow */
+    --shadow1: 10px 14px 28px rgba(0,0,0,.28), -6px -6px 16px rgba(255,255,255,.08);
+    --shadow2: inset 6px 6px 12px rgba(0,0,0,.28), inset -6px -6px 10px rgba(255,255,255,.10);
+    --btn: linear-gradient(180deg, #141e2e, #0f1724);
+    --btn-press: linear-gradient(180deg, #0f1724, #141e2e);
+    --hex:#3a3517;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:500 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Inter, Roboto, Arial}
+
+  /* phone shell */
+  .wrap{min-height:100dvh;display:flex;align-items:flex-start;justify-content:center;padding:5%}
+  .phone{width:min(92%,420px);background:var(--shell);border-radius:28px;box-shadow:var(--shadow1);padding:18px 16px;margin:auto;position:relative}
+
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .title{display:flex;align-items:center;gap:10px}
+  .title h1{margin:0;font:800 16px/1.1 ui-rounded, "SF Pro Rounded", Nunito, Poppins, system-ui}
+  .actions{display:flex;gap:8px;align-items:center}
+  .mode,.cbtn{border:0;border-radius:999px;width:34px;height:34px;display:grid;place-items:center;background:var(--card);color:var(--fg);box-shadow:var(--shadow1);cursor:pointer}
+  .mode:active,.cbtn:active{filter:brightness(.92);transform:scale(.96)}
+
+  /* display */
+  .display{position:relative;background:var(--card);border-radius:22px;padding:14px 12px;box-shadow:var(--shadow2)}
+  .info{min-height:18px;color:var(--muted);font-size:12px;margin:2px 4px 8px 4px;display:flex;justify-content:space-between;gap:8px}
+  .expr{color:var(--muted);font:600 12px/1.2 "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;text-align:right;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:30px}
+  .result{position:relative;text-align:right;min-height:44px}
+  #resText{position:relative;z-index:2;font:800 40px/1.15 "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;color:var(--ok)}
+  /* sparks only (1s) INSIDE box */
+  .sparks{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden}
+  .spark{position:absolute;border-radius:999px;opacity:0}
+
+  .memLine{margin-top:6px;color:var(--muted);font:600 11px ui-sans-serif}
+
+  /* keypad layout */
+  .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .key{user-select:none;border-radius:18px;padding:14px 10px;text-align:center;font:800 18px/1 ui-rounded, "SF Pro Rounded", Nunito, Poppins, system-ui;background:var(--btn);border:none;box-shadow:var(--shadow1);cursor:pointer;transition:transform .12s ease, filter .12s ease}
+  .key.op{font-weight:900}
+  .key.big{grid-column:span 2}
+  .key.tall{grid-row:span 2}
+  .key:active, .key.press{transform:scale(.95);filter:brightness(.92)}
+
+  /* ensure white text in dark theme */
+  [data-theme="dark"] .key,[data-theme="dark"] .fkey,[data-theme="dark"] .hex,[data-theme="dark"] .mode,[data-theme="dark"] .cbtn{color:#fff}
+
+  /* function strip (memory + percent only) */
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+  .fkey{border:none;border-radius:14px;padding:10px 8px;text-align:center;background:var(--btn);box-shadow:var(--shadow1);font:800 14px/1 ui-rounded, "SF Pro Rounded", Nunito, Poppins;cursor:pointer}
+  .fkey:active, .fkey.press{transform:scale(.95);filter:brightness(.92)}
+
+  /* error + history */
+  .err{display:none;margin-top:8px;color:var(--error);font-weight:700}
+  .err.show{display:block}
+  details.history{margin-top:10px}
+  details summary{cursor:pointer;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  .histList{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .histItem{background:var(--card);border-radius:12px;box-shadow:var(--shadow2);padding:8px 10px;font:600 12px "Roboto Mono", ui-monospace}
+
+  /* more (collapsible) */
+  details.more{margin-top:14px}
+  details.more summary{font:800 13px/1.2 ui-sans-serif;color:var(--muted);margin:0 0 8px 2px}
+  .hexgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .hex{position:relative;aspect-ratio:1.1/1;border:none;clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);background:var(--hex);box-shadow:var(--shadow1),0 0 18px rgba(255,210,0,.25);font:800 14px/1 ui-rounded, "SF Pro Rounded", Nunito;cursor:pointer}
+  [data-theme="dark"] .hex{box-shadow:var(--shadow1),0 0 22px rgba(255,220,120,.35)}
+  .hex:active,.hex.press{transform:scale(.95);filter:brightness(.98)}
+  .hex span{position:absolute;inset:0;display:grid;place-items:center;padding:6px;text-align:center}
+
+  /* small tool input panel */
+  .toolpanel{display:none;margin-top:8px;background:var(--card);border-radius:12px;box-shadow:var(--shadow2);padding:10px;gap:8px}
+  .toolpanel.show{display:grid;grid-template-columns:1fr auto;align-items:center}
+  .toolpanel input{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,0,0,.1);background:transparent;color:inherit;font:600 14px/1.1 ui-sans-serif}
+  .toolpanel button{border:0;border-radius:10px;padding:10px 12px;background:var(--btn);box-shadow:var(--shadow1);cursor:pointer;font-weight:800}
+
+  /* fireworks canvas for button blasts */
+  #fx{position:fixed;inset:0;pointer-events:none}
+
+  /* footer */
+  .credit{position:fixed;right:12px;bottom:10px;color:var(--muted);font-size:12px;user-select:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone">
+    <header>
+      <div class="title"><span>🧮</span><h1>Surveyor Calculator</h1></div>
+      <div class="actions">
+        <button id="copyBtn" class="cbtn" title="Copy result">⧉</button>
+        <button id="mode" class="mode" aria-pressed="false">🌞</button>
+      </div>
+    </header>
+
+    <section class="display" id="displayBox">
+      <div class="info"><div id="infoMsg"></div><div id="miniHint"></div></div>
+      <div id="expr" class="expr"></div>
+      <div id="result" class="result"><span id="resText">0</span>
+        <div class="sparks" id="sparks"></div>
+      </div>
+      <div id="memLine" class="memLine">📥 Memory: <span id="memVal">0</span></div>
+      <!-- mini tool input panel -->
+      <div id="toolPanel" class="toolpanel">
+        <input id="toolInput" type="text" placeholder="" />
+        <button id="toolApply">OK</button>
+      </div>
+    </section>
+
+    <!-- memory + percent strip -->
+    <div class="strip">
+      <button class="fkey" data-k="MC">MC</button>
+      <button class="fkey" data-k="M+">M+</button>
+      <button class="fkey" data-k="M-">M-</button>
+      <button class="fkey" data-k="%">%</button>
+    </div>
+
+    <!-- keypad like screenshot -->
+    <div class="pad" id="pad">
+      <button class="key big op" data-k="C">C</button>
+      <button class="key op" data-k="÷">÷</button>
+      <button class="key op" data-k="×">×</button>
+
+      <button class="key" data-k="7">7</button>
+      <button class="key" data-k="8">8</button>
+      <button class="key" data-k="9">9</button>
+      <button class="key op" data-k="-">−</button>
+
+      <button class="key" data-k="4">4</button>
+      <button class="key" data-k="5">5</button>
+      <button class="key" data-k="6">6</button>
+      <button class="key op" data-k="+">+</button>
+
+      <button class="key" data-k="1">1</button>
+      <button class="key" data-k="2">2</button>
+      <button class="key" data-k="3">3</button>
+      <button class="key tall op" data-k="=">=</button>
+
+      <button class="key big" data-k="0">0</button>
+      <button class="key" data-k=".">.</button>
+    </div>
+
+    <div id="err" class="err">⚠️ Invalid / impossible input</div>
+
+    <!-- More (collapsible) -->
+    <details class="more" id="moreBox">
+      <summary>☰ More</summary>
+      <div class="hexgrid">
+        <button class="hex" data-tool="pi"><span>π</span></button>
+        <button class="hex" data-tool="sqrt"><span>√x</span></button>
+        <button class="hex" data-tool="cbrt"><span>∛x</span></button>
+        <button class="hex" data-tool="sqr"><span>x²</span></button>
+        <button class="hex" data-tool="cube"><span>x³</span></button>
+        <button class="hex" data-tool="circle"><span>🕳️</span></button>
+        <button class="hex" data-tool="cyl"><span>🛢️</span></button>
+        <button class="hex" data-tool="tri"><span>📐</span></button>
+        <button class="hex" data-tool="ftm"><span>Ft→m</span></button>
+        <button class="hex" data-tool="mft"><span>m→Ft</span></button>
+        <button class="hex" data-tool="clm"><span>⛓️→m</span></button>
+        <button class="hex" data-tool="mcl"><span>m→⛓️</span></button>
+      </div>
+    </details>
+
+    <details class="history" id="histBox">
+      <summary>History (tap to open)</summary>
+      <div id="histList" class="histList"></div>
+    </details>
+  </div>
+</div>
+
+<canvas id="fx"></canvas>
+<div class="credit">© Vijay Parmar</div>
+
+<script>
+  // ========== THEME ==========
+  const modeBtn = document.getElementById('mode');
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    modeBtn.textContent = (t==='dark'? '🌙' : '🌞');
+    localStorage.setItem('calc.theme', t);
+  }
+  setTheme(localStorage.getItem('calc.theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  modeBtn.onclick = ()=> setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+
+  // ========== STATE ==========
+  const exprEl = document.getElementById('expr');
+  const resEl = document.getElementById('result');
+  const resText = document.getElementById('resText');
+  const sparksEl = document.getElementById('sparks');
+  const memValEl = document.getElementById('memVal');
+  const infoMsg = document.getElementById('infoMsg');
+  const errEl = document.getElementById('err');
+  const histList = document.getElementById('histList');
+  const copyBtn = document.getElementById('copyBtn');
+  const toolPanel = document.getElementById('toolPanel');
+  const toolInput = document.getElementById('toolInput');
+  const toolApply = document.getElementById('toolApply');
+
+  let display='0', accumulator=null, pending=null, justEval=false, memory=0, history=[];
+  let activeTool=null; // which special tool is awaiting input
+  let infoTimer=null;    // single info timer
+
+  const fmt=(n)=>{ if(!isFinite(n)) return '∞'; const r=Math.round((+n+Number.EPSILON)*1e9)/1e9; return (r%1===0)? r.toString(): r.toString(); };
+  const showErr=(m)=>{ errEl.textContent='⚠️ '+m; errEl.classList.add('show'); };
+  const clearErr=()=> errEl.classList.remove('show');
+
+  function insideSparks(){
+    // big mixed sparks (1s) contained inside result box
+    const colors=['rgba(255,211,77,','rgba(156,114,255,'];
+    sparksEl.innerHTML='';
+    const N=20;
+    for(let i=0;i<N;i++){
+      const d=document.createElement('div'); d.className='spark';
+      const size=6+Math.random()*14; d.style.width=d.style.height=size+'px';
+      const left=Math.random()*100; const top=20+Math.random()*60; // keep away from edges a bit
+      d.style.left=left+'%'; d.style.top=top+'%';
+      const c=colors[(Math.random()*colors.length)|0]; d.style.background=`radial-gradient(circle, ${c}1), ${c}0)`; d.style.opacity=1;
+      sparksEl.appendChild(d);
+      const dx=(Math.random()<.5?-1:1)*(10+Math.random()*30);
+      const dy=(Math.random()<.5?-1:1)*(10+Math.random()*30);
+      requestAnimationFrame(()=>{
+        d.style.transition='transform 1s ease, opacity 1s ease';
+        d.style.transform=`translate(${dx}px, ${dy}px) scale(.6)`; d.style.opacity=0;
+      });
+    }
+  }
+
+  function setDisplay(v, spark=true){
+    display = v.toString();
+    resText.textContent = display;
+    if(spark) insideSparks();
+  }
+  const setExpr=(t)=> exprEl.textContent=t || '';
+  const updateMem=()=> memValEl.textContent = fmt(memory);
+  const pushHist=(e,r)=>{ history.unshift(`${e} = ${r}`); if(history.length>25) history.pop();
+    histList.innerHTML = history.map(h=>`<div class='histItem'>${h}</div>`).join(''); };
+
+  // unified info/guide helper
+  function info(msg, ms=4000){
+    clearTimeout(infoTimer); infoMsg.textContent=msg; infoTimer=setTimeout(()=>{ infoMsg.textContent=''; }, ms);
+  }
+
+  // ========== CALC ENGINE ==========
+  function apply(op,a,b){ switch(op){ case '+':return a+b; case '-':return a-b; case '*':return a*b; case '/': if(b===0) throw Error('Divide by 0'); return a/b; } }
+  function digit(d){ clearErr(); if(justEval){display='0'; justEval=false;} display = (display==='0'&& d!=='.')? d : display+d; setDisplay(display,false); }
+  function setOp(op){ clearErr(); const x=+display; if(accumulator==null){accumulator=x;} else if(pending){ try{accumulator=apply(pending,accumulator,x);}catch(e){showErr(e.message);return;} setDisplay(fmt(accumulator)); pushHist(`${fmt(accumulator)} ${op}`, fmt(accumulator)); }
+    pending=({'÷':'/','×':'*'}[op]||op); setExpr(`${fmt(accumulator)} ${op}`); display='0'; }
+  function eq(){ clearErr(); if(!pending){ setDisplay(display); pushHist(display, display); return;} const a=accumulator, b=+display; let r; try{ r=apply(pending,a,b);}catch(e){showErr(e.message);return;} setDisplay(fmt(r)); setExpr(`${fmt(a)} ${({'/':'÷','*':'×'}[pending]||pending)} ${fmt(b)}`); pending=null; accumulator=r; justEval=true; pushHist(exprEl.textContent, fmt(r)); }
+  const pct=()=>{ clearErr(); const x=+display; display = pending? fmt(accumulator*x/100): fmt(x/100); setDisplay(display); };
+  const clr=()=>{ display='0'; accumulator=null; pending=null; setExpr(''); setDisplay('0',false); clearErr(); hideToolPanel(); };
+
+  // memory
+  function mem(action){ const x=+display; if(action==='MC') memory=0; if(action==='M+') memory+=x; if(action==='M-') memory-=x; updateMem(); }
+
+  // ========== BUTTON WIRING ==========
+  const pressFX=(btn)=>{ btn.classList.add('press'); setTimeout(()=>btn.classList.remove('press'),150); fireworkAt(btn); };
+
+  document.querySelectorAll('.key,.fkey,.hex').forEach(b=>{ b.addEventListener('click',()=>{ pressFX(b); }); });
+
+  // keypad
+  document.getElementById('pad').addEventListener('click',(e)=>{ const k=e.target.dataset.k; if(!k) return; handle(k); });
+  document.querySelectorAll('.fkey').forEach(f=> f.addEventListener('click',()=> handle(f.dataset.k)));
+
+  function handle(k){
+    if(['MC','M+','M-'].includes(k)) return mem(k);
+    if(/^\d$/.test(k)) return digit(k);
+    if(k==='.') return digit('.');
+    if(['+','×','÷','-'].includes(k)) return setOp(k);
+    if(k==='=') return eq();
+    if(k==='%') return pct();
+    if(k==='C') return clr();
+  }
+
+  // copy button (result only) with fallback
+  function copyText(txt){
+    if(navigator.clipboard && window.isSecureContext){
+      return navigator.clipboard.writeText(txt).catch(()=>fallbackCopy(txt));
+    } else { return fallbackCopy(txt); }
+  }
+  function fallbackCopy(txt){
+    const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(_){} document.body.removeChild(ta); }
+  copyBtn.addEventListener('click',()=>{ copyText(resText.textContent); info('Copied result',1500); });
+
+  // ========== MORE TOOLS ==========
+  const ftToM=(feet,inch)=> (feet + (inch||0)/12)*0.3048;
+  const mToFt=(m)=>{ const totalIn=m/0.0254; const feet=Math.floor(totalIn/12); const inch=Math.round(totalIn - feet*12); return {feet,inch}; };
+  const linkToM=0.629, linksPerChain=16;
+  const clToM=(chain,link)=> (chain*linksPerChain + (link||0))*linkToM;
+  const mToCL=(m)=>{ const totalLinks=m/linkToM; const chain=Math.floor(totalLinks/linksPerChain); const link=Math.round(totalLinks - chain*linksPerChain); return {chain,link}; };
+
+  function openToolInput(ph, tool){ activeTool=tool; toolPanel.classList.add('show'); toolInput.placeholder=ph; toolInput.value=''; toolInput.focus(); info(document.querySelector(`[data-tool="${tool}"]`).title || infoMsg.textContent, 10000); }
+  function hideToolPanel(){ activeTool=null; toolPanel.classList.remove('show'); }
+
+  function runActiveTool(){ if(!activeTool) return; const v=toolInput.value.trim();
+    try{
+      if(activeTool==='circle'){ const d=Number(v); if(!(d>0)) throw Error('Diameter?'); const area=Math.PI*(d*d)/4; setDisplay(fmt(area)); setExpr(`🕳️ d=${fmt(d)}`); pushHist(`CircleArea d=${fmt(d)}`, fmt(area)); }
+      if(activeTool==='cyl'){ const parts=v.split('-').map(Number); if(!(parts[0]>0&&parts[1]>0)) throw Error('Use d-h'); const [d,h]=parts; const vol=Math.PI*(d*d)/4*h; setDisplay(fmt(vol)); setExpr(`🛢️ d=${fmt(d)}, h=${fmt(h)}`); pushHist(`CylVol d=${fmt(d)} h=${fmt(h)}`, fmt(vol)); }
+      if(activeTool==='tri'){ const p=v.split('-').map(Number); if(p.length<3||p.some(x=>!(x>0))) throw Error('Use a-b-c'); const [a,b,c]=p; if(a+b<=c||a+c<=b||b+c<=a) throw Error('Triangle invalid'); const s=(a+b+c)/2; const area=Math.sqrt(s*(s-a)*(s-b)*(s-c)); setDisplay(fmt(area)); setExpr(`📐 a=${fmt(a)},b=${fmt(b)},c=${fmt(c)}`); pushHist(`TriArea ${fmt(a)}-${fmt(b)}-${fmt(c)}`, fmt(area)); }
+      if(activeTool==='ftm'){ const p=v.split('-').map(Number); if(!(p[0]>=0)) throw Error('Use feet-inch'); const m=ftToM(p[0],p[1]||0); setDisplay(fmt(m)); setExpr(`${p[0]}′ ${p[1]||0}″ → m`); pushHist(`Ft→m ${p[0]}-${p[1]||0}`, fmt(m)); }
+      if(activeTool==='mft'){ const m=Number(v); if(!(m>=0)) throw Error('Meters?'); const {feet,inch}=mToFt(m); setDisplay(`${feet}′ ${inch}″`); setExpr(`${fmt(m)} m → Ft-In`); pushHist(`m→Ft ${fmt(m)}`, `${feet}′ ${inch}″`); }
+      if(activeTool==='clm'){ const p=v.split('-').map(Number); if(!(p[0]>=0)) throw Error('Use chain-link'); const m=clToM(p[0],p[1]||0); setDisplay(fmt(m)); setExpr(`${p[0]}ch ${p[1]||0}ln → m`); pushHist(`⛓️→m ${p[0]}-${p[1]||0}`, fmt(m)); }
+      if(activeTool==='mcl'){ const m=Number(v); if(!(m>=0)) throw Error('Meters?'); const {chain,link}=mToCL(m); setDisplay(`${chain} ch ${link} ln`); setExpr(`${fmt(m)} m → ⛓️`); pushHist(`m→⛓️ ${fmt(m)}`, `${chain} ch ${link} ln`); }
+      hideToolPanel();
+    }catch(e){ showErr(e.message); }
+  }
+
+  // open tools + guidance messages (10s after typing)
+  document.querySelectorAll('.hex').forEach(h=> h.addEventListener('click',()=>{
+    const tool=h.dataset.tool; clearErr();
+
+    // unary functions act on current display immediately
+    if(tool==='sqrt' || tool==='cbrt' || tool==='sqr' || tool==='cube'){
+      const map={sqrt:'√x',cbrt:'∛x',sqr:'x²',cube:'x³'}; info(map[tool]+" of current number",10000);
+      if(tool==='sqrt'){ let x=+display; if(!(x>=0)) return showErr('√ negative'); setDisplay(fmt(Math.sqrt(x))); pushHist('√('+fmt(x)+')', fmt(Math.sqrt(x))); }
+      if(tool==='cbrt'){ let x=+display; setDisplay(fmt(Math.cbrt(x))); pushHist('∛('+fmt(x)+')', fmt(Math.cbrt(+display))); }
+      if(tool==='sqr'){ let x=+display; setDisplay(fmt(x*x)); pushHist('('+fmt(x)+')²', fmt(x*x)); }
+      if(tool==='cube'){ let x=+display; setDisplay(fmt(x*x*x)); pushHist('('+fmt(x)+')³', fmt(x*x*x)); }
+      return;
+    }
+
+    if(tool==='pi'){ setDisplay(fmt(Math.PI)); setExpr('π'); info('π inserted',10000); return; }
+    if(tool==='circle'){ info('Circle area: diameter (e.g., 12)',10000); openToolInput('diameter', 'circle'); return; }
+    if(tool==='cyl'){ info('Cylinder volume: d-h (e.g., 12-8)',10000); openToolInput('d-h', 'cyl'); return; }
+    if(tool==='tri'){ info('Triangle area: a-b-c',10000); openToolInput('a-b-c', 'tri'); return; }
+    if(tool==='ftm'){ info('Feet→meter: feet-inch (e.g., 5-7)',10000); openToolInput('feet-inch', 'ftm'); return; }
+    if(tool==='mft'){ info('Meter→feet-inch',10000); openToolInput('meters', 'mft'); return; }
+    if(tool==='clm'){ info('Chain-Link→meter: chain-link',10000); openToolInput('chain-link', 'clm'); return; }
+    if(tool==='mcl'){ info('Meter→Chain-Link',10000); openToolInput('meters', 'mcl'); return; }
+  }));
+
+  toolApply.addEventListener('click', runActiveTool);
+  toolInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') runActiveTool(); if(e.key==='Escape') hideToolPanel(); });
+  toolInput.addEventListener('input', ()=>{ // keep guide visible for 10s from last typing
+    if(activeTool) info(infoMsg.textContent||'',10000);
+  });
+
+  // ========== FIREWORKS (buttons) ==========
+  const fx = document.getElementById('fx');
+  const ctx = fx.getContext('2d');
+  function sizeCanvas(){ fx.width=innerWidth; fx.height=innerHeight; }
+  sizeCanvas(); addEventListener('resize',sizeCanvas);
+
+  const particles=[];
+  function fireworkAt(el){
+    const r=el.getBoundingClientRect(); const x=r.left+r.width/2, y=r.top+r.height/2;
+    const n=18+Math.floor(Math.random()*12);
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2; const sp=2+Math.random()*2.5; const life=900+Math.random()*600;
+      const color = Math.random()<.5? 'rgba(255,211,77,': 'rgba(156,114,255,'; // yellow or purple
+      particles.push({x,y,vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, t:0, life, color});
+    }
+  }
+  let lastT=performance.now();
+  function tick(t){ const dt=t-lastT; lastT=t; ctx.clearRect(0,0,fx.width,fx.height);
+    for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.t+=dt; p.x+=p.vx; p.y+=p.vy; p.vy+=0.02; const k=Math.max(0,1-p.t/p.life); ctx.globalAlpha=k; ctx.fillStyle=p.color+(0.25*k)+')'; ctx.beginPath(); ctx.arc(p.x,p.y,1.5+2*(1-k),0,Math.PI*2); ctx.fill(); if(p.t>p.life) particles.splice(i,1); }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ==== keyboard shortcuts ====
+  window.addEventListener('keydown',(e)=>{
+    // if tool input is active, route keys to it and ignore calculator except Enter/Escape
+    if(activeTool){
+      if(e.key==='Enter'){ runActiveTool(); return; }
+      if(e.key==='Escape'){ hideToolPanel(); return; }
+      // let numbers, dot, minus go to the input box
+      if(/^[0-9.-]$/.test(e.key)) return; // allow native typing into focused input
+      // other keys ignored while tool panel is open
+      return;
+    }
+
+    let k=e.key;
+    if(k==='*') k='×'; if(k==='/') k='÷';
+    if(k==='Enter'){ // equals
+      const btn=[...document.querySelectorAll('[data-k]')].find(b=>b.dataset.k==='=');
+      if(btn){ pressFX(btn); eq(); }
+      return;
+    }
+    if(k==='Escape'){ // Clear
+      const btn=[...document.querySelectorAll('[data-k]')].find(b=>b.dataset.k==='C');
+      if(btn){ pressFX(btn); clr(); }
+      return;
+    }
+    if(k==='Backspace'){
+      // backspace behavior on current display
+      if(display.length>1){ display = display.slice(0,-1); } else { display='0'; }
+      setDisplay(display,false); return;
+    }
+    const btn=[...document.querySelectorAll('[data-k]')].find(b=>b.dataset.k===k);
+    if(btn){ pressFX(btn); handle(k); }
+  });
+
+  // init
+  setExpr(''); setDisplay('0',false); updateMem();
+</script>
+</body>
+</html>
