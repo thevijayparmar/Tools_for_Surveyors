@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Total Station — Angular Accuracy → Linear Error (SVG)</title>
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    :root{
+      --bg: #f6f7fb; --surface: #ffffff; --text: #0f172a; --muted: #64748b;
+      /* DARKER grid dashed circles */
+      --grid: #9ca3af; 
+      --stroke: #111827; --pink: #ff4d7e; --ring: rgba(59,130,246,.65);
+      --ping: rgba(255,77,126,.30);
+      --spark-purple: #a855f7; --spark-orange: #f59e0b; --spark-yellow: #facc15;
+    }
+    .dark:root{
+      --bg:#1f2430; --surface:#222838; --text:#f5f7fa; --muted:#a3a9b7;
+      --grid:#6b7280; --stroke:#e5e7eb; --ring: rgba(96,165,250,.75); --ping: rgba(255,77,126,.45);
+    }
+    body{ background: var(--bg); color: var(--text); }
+    .neo{ background: var(--surface); border-radius: 18px; box-shadow: 8px 8px 16px rgba(0,0,0,.06), -8px -8px 16px rgba(255,255,255,.6); }
+    .dark .neo{ box-shadow: 8px 8px 18px rgba(0,0,0,.55), -8px -8px 18px rgba(255,255,255,.04); }
+    .range-wrap{ width:min(80vw,100%); }
+    input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:9999px; background:linear-gradient(90deg, var(--pink) 0%, var(--pink) var(--fill-pct,0%), transparent var(--fill-pct,0%)) no-repeat, var(--surface); box-shadow: inset 6px 6px 12px rgba(0,0,0,.06), inset -6px -6px 12px rgba(255,255,255,.75); }
+    input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:24px; height:24px; border-radius:9999px; background:var(--surface); border:3px solid var(--pink); box-shadow:0 3px 10px rgba(0,0,0,.15), 0 0 0 8px rgba(255,77,126,.15); cursor:pointer; }
+    input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border-radius:9999px; background:var(--surface); border:3px solid var(--pink); box-shadow:0 3px 10px rgba(0,0,0,.15), 0 0 0 8px rgba(255,77,126,.15); cursor:pointer; }
+    .svg-wrap{ position:relative; overflow:visible; }
+    .label{ font:12px/1.2 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .ticket-card{ border-radius:18px; background:var(--surface); transition:transform .18s ease, box-shadow .18s ease; }
+    .ticket-card:hover{ transform: translateY(-2px); }
+    .corner-credit{ position:fixed; right:.75rem; bottom:.5rem; font-size:.75rem; color:var(--muted); opacity:.75; pointer-events:none; }
+    /* collapsible caret */
+    details > summary::-webkit-details-marker{ display:none; }
+    .caret{ transition: transform .2s ease; }
+    details[open] .caret{ transform: rotate(90deg); }
+  </style>
+</head>
+<body class="min-h-screen transition-colors duration-300">
+  <header class="w-full sticky top-0 z-20 backdrop-blur px-4">
+    <div class="max-w-7xl mx-auto py-4 flex items-center justify-between">
+      <h1 class="text-xl font-semibold">Total Station — Angular Accuracy → Linear Error (mm)</h1>
+      <button id="themeToggle" class="neo px-3 py-1.5 text-lg" title="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 pb-24">
+    <!-- Distance Control (title removed as requested) -->
+    <section class="mb-6 neo p-4">
+      <div class="flex items-center gap-4 justify-center">
+        <span id="distanceLabel" class="text-sm md:text-base font-medium tabular-nums">Distance: 100 m</span>
+        <div class="range-wrap"><input id="distanceSlider" type="range" min="1" max="5000" step="1" aria-label="Distance in meters"></div>
+      </div>
+    </section>
+
+    <!-- Angular Accuracy -->
+    <section class="neo p-4 mb-4" style="overflow:visible">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold opacity-90">Angular Accuracy Visualization</h3>
+        <span class="text-xs" style="color:var(--muted)">Scaled FOV for Visulization</span>
+      </div>
+      <div id="arcBox" class="svg-wrap w-full" style="height: 220px; overflow: visible;">
+        <svg id="arcSVG" width="100%" height="100%" role="img" aria-label="Angular accuracy visualization"></svg>
+      </div>
+    </section>
+
+    <!-- Linear Error (bars) -->
+    <section class="neo p-4 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold opacity-90">Linear Error Visualization</h3>
+        <span class="text-xs" style="color:var(--muted)">Bars scale to maximum error at current distance</span>
+      </div>
+      <div id="lineBox" class="svg-wrap w-full" style="height: 132px;">
+        <svg id="lineSVG" width="100%" height="100%" role="img" aria-label="Linear error visualization"></svg>
+      </div>
+    </section>
+
+    <!-- Instruments -->
+    <section class="mt-6">
+      <h3 class="text-base font-semibold mb-3">Instruments</h3>
+      <div id="instrumentGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+    </section>
+
+    <!-- Calculations (collapsible) -->
+    <section class="mt-6 neo p-0">
+      <details id="calcDetails" class="group">
+        <summary class="list-none cursor-pointer p-4 flex items-center justify-between select-none">
+          <h3 class="text-sm font-semibold opacity-90">Mathematical Calculations (all instruments)</h3>
+          <span class="caret text-base">▸</span>
+        </summary>
+        <div class="px-4 pb-4">
+          <div class="mb-2 text-xs md:text-sm">Formula: <code>Linear Error (mm) = Distance(m) × tan(θ) × 1000</code>, θ(rad) = arcsec × π/(180×3600)</div>
+          <div id="calcBody" class="text-xs md:text-sm font-mono space-y-2"></div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <div class="corner-credit">© Vijay Parmar</div>
+
+  <script>
+    /*************** THEME ***************/
+    const root = document.documentElement; const themeToggle = document.getElementById('themeToggle');
+    function setThemeBtn(){ themeToggle.textContent = root.classList.contains('dark') ? '☀️' : '🌙'; }
+    function initTheme(){ const s = localStorage.getItem('ts_theme'); if(s==='dark') root.classList.add('dark'); setThemeBtn(); refreshAll(); }
+    themeToggle.addEventListener('click', ()=>{ root.classList.toggle('dark'); localStorage.setItem('ts_theme', root.classList.contains('dark')?'dark':'light'); setThemeBtn(); refreshAll(); });
+
+    /*************** DATA ***************/
+    const instruments = [
+      { key:'hp',    name:'High-Precision Total Station', seconds:0.5,  color:'#3b82f6', grad:['#60a5fa','#3b82f6'] },
+      { key:'std',   name:'Standard Total Station',       seconds:1,    color:'#22c55e', grad:['#34d399','#22c55e'] },
+      { key:'gen',   name:'General-Purpose Total Station',seconds:2,    color:'#f59e0b', grad:['#fbbf24','#f59e0b'] },
+      { key:'basic', name:'Basic Total Station',          seconds:5,    color:'#ef4444', grad:['#f87171','#ef4444'] },
+      { key:'theo',  name:'Theodolite',                   seconds:20,   color:'#a855f7', grad:['#c084fc','#a855f7'] },
+    ];
+    const SEC2RAD = Math.PI / (180 * 3600);
+
+    // Snap points kept (logic only)
+    const snapSet = new Set([1,5,10,25,50,100]); for(let d=200; d<=5000; d+=100) snapSet.add(d); const snapPoints=[...snapSet].sort((a,b)=>a-b);
+    function snapDistance(val){ let nearest=snapPoints[0], best=Math.abs(val-nearest); for(let i=1;i<snapPoints.length;i++){ const d=Math.abs(val-snapPoints[i]); if(d<best){best=d; nearest=snapPoints[i];} } return nearest; }
+    function mmError(distance, arcsec){ return distance * Math.tan(arcsec * SEC2RAD) * 1000; }
+    function fmtMM(v){ return v<1? v.toFixed(3) : v<10? v.toFixed(2) : v.toFixed(1); }
+
+    /*************** DOM ***************/
+    const distanceSlider = document.getElementById('distanceSlider'); const distanceLabel = document.getElementById('distanceLabel');
+    const arcSVG = document.getElementById('arcSVG'); const lineSVG = document.getElementById('lineSVG');
+    const arcBox = document.getElementById('arcBox'); const lineBox = document.getElementById('lineBox');
+    const instrumentGrid = document.getElementById('instrumentGrid'); const calcBody = document.getElementById('calcBody');
+
+    let currentDistance = 100; distanceSlider.value = currentDistance;
+    const mmRefs = {}; const ticketRefs = {};
+
+    function buildTickets(){ instrumentGrid.innerHTML=''; instruments.forEach(inst=>{ const card=document.createElement('div'); card.className='ticket-card shadow-md overflow-hidden text-center'; card.style.setProperty('--inst-glow', inst.color+'55'); card.setAttribute('aria-label', `${inst.name} ${inst.seconds} arcseconds`);
+      const top=document.createElement('div'); top.className='px-4 py-3 text-white grid place-items-center'; top.style.background=`linear-gradient(135deg, ${inst.grad[0]}, ${inst.grad[1]})`; top.innerHTML=`<div class="text-xs opacity-95">${inst.name}</div><div class="text-3xl font-extrabold leading-none">${inst.seconds}″</div>`;
+      const bottom=document.createElement('div'); bottom.className='px-4 py-3'; bottom.innerHTML=`<div class="leading-tight"><div id="mm-${inst.key}" class="text-2xl font-extrabold tabular-nums" style="color:var(--pink)">0.0</div><div class="text-[11px]" style="color:var(--muted)">linear error (mm)</div></div>`;
+      card.appendChild(top); card.appendChild(bottom); instrumentGrid.appendChild(card); mmRefs[inst.key]=bottom.querySelector(`#mm-${inst.key}`); ticketRefs[inst.key]=card; }); }
+    buildTickets();
+
+    /*************** SVG BUILD: GRID / OUTER / LAYERS ***************/
+    function sizeOf(el){ const r=el.getBoundingClientRect(); return { w: Math.max(320, Math.floor(r.width)), h: Math.max(100, Math.floor(r.height)) }; }
+
+    let arcState={ cx:0, cy:0, R:0, spm:0, visScale:1 };
+    let groups={ effects:null, wedges:null };
+
+    function buildArcSVG(){
+      const { w, h } = sizeOf(arcBox); arcSVG.setAttribute('viewBox',`0 0 ${w} ${h}`); arcSVG.innerHTML='';
+      const margin = Math.min(w,h)*0.06; const cx = Math.max(60, w*0.18); const cy = h/2; // fixed station center
+      const R = Math.max(14, w - cx - margin); // zoom: station center → outer face
+      const spm = R / currentDistance;
+
+      // visual scaling so 20″ = max wedge that fits vertically
+      const theoTheta = instruments.find(i=>i.key==='theo').seconds * SEC2RAD; // 20″ in rad
+      const maxHalfByHeight = Math.max(0.02, Math.atan(Math.max(8, (h*0.5 - 10)) / R)); // safety floor
+      const phiMax = Math.min(2*maxHalfByHeight, 0.9); // cap to avoid huge wedges
+      const visScale = phiMax / theoTheta; // radians per real-radian
+      arcState = { cx, cy, R, spm, visScale };
+
+      // defs (glow)
+      const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+      defs.innerHTML=`<filter id="sparkGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`; arcSVG.appendChild(defs);
+
+      // dashed grid rings (concentric, darker gray)
+      const ringMeters=[1,5,10,25,50,100]; for(let r=200;r<=5000;r+=100) ringMeters.push(r);
+      ringMeters.filter(m=>m<=currentDistance).forEach(m=>{ const rr=(m/currentDistance)*R; if(rr<2) return; const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',rr); c.setAttribute('fill','none'); c.setAttribute('stroke','var(--grid)'); c.setAttribute('stroke-width','1'); c.setAttribute('stroke-dasharray','4 4'); arcSVG.appendChild(c); });
+
+      // OUTER circle — 2× thicker and rotates 50s/360°
+      const dc=document.createElementNS('http://www.w3.org/2000/svg','circle'); dc.setAttribute('cx',cx); dc.setAttribute('cy',cy); dc.setAttribute('r',R); dc.setAttribute('fill','none'); dc.setAttribute('stroke','var(--ring)'); dc.setAttribute('stroke-width','5'); dc.setAttribute('stroke-dasharray','8 8');
+      const anim=document.createElementNS('http://www.w3.org/2000/svg','animateTransform'); anim.setAttribute('attributeName','transform'); anim.setAttribute('type','rotate'); anim.setAttribute('from',`0 ${cx} ${cy}`); anim.setAttribute('to',`360 ${cx} ${cy}`); anim.setAttribute('dur','50s'); anim.setAttribute('repeatCount','indefinite'); dc.appendChild(anim); arcSVG.appendChild(dc);
+
+      // Station
+      const emoji=document.createElementNS('http://www.w3.org/2000/svg','text'); emoji.setAttribute('x',cx); emoji.setAttribute('y',cy); emoji.setAttribute('text-anchor','middle'); emoji.setAttribute('dominant-baseline','central'); emoji.setAttribute('font-size','22'); emoji.textContent='🔭'; arcSVG.appendChild(emoji);
+
+      // Layer groups
+      const effects=document.createElementNS('http://www.w3.org/2000/svg','g'); // radar pings + sparks
+      const wedges=document.createElementNS('http://www.w3.org/2000/svg','g'); // FOV wedges
+      arcSVG.appendChild(effects); arcSVG.appendChild(wedges); groups={ effects, wedges };
+    }
+
+    // helpers
+    function polar(cx,cy,r,a){ return [cx + Math.cos(a)*r, cy + Math.sin(a)*r]; }
+    function ensurePath(id,fill,stroke){ let el=document.getElementById(id); if(!el){ el=document.createElementNS('http://www.w3.org/2000/svg','path'); el.id=id; el.setAttribute('fill', fill || 'none'); if(stroke){ el.setAttribute('stroke', stroke); el.setAttribute('stroke-width','2'); } groups.wedges.appendChild(el);} return el; }
+
+    /*************** TIMING (SYNC ACROSS TILES) ***************/
+    const BEAM_DUR = 3000;     // 1s per instrument (reduced by half)
+    const OVERLAP  = 1500;      // 0.5s overlap between instruments
+    const RADAR_SPEED = 343;   // m/s (for ping expand)
+    const RADAR_STROKE = 20;    // thicker wave
+    const PING_PERIOD = 4000;  // new ping every 5s
+
+    let animStart = performance.now();
+    let lastTime  = performance.now();
+    let nextPingAt = performance.now();
+    const pings=[]; // {el,start}
+    const sparks=[]; // {el,start,angle,baseR,driftX,driftY}
+    const SPARK_TTL = 500; const SPARK_SPAWN = 25; let sparkAcc=0;
+
+    function instrumentWindow(i){ return { start: animStart + i*(BEAM_DUR - OVERLAP), end: animStart + i*(BEAM_DUR - OVERLAP) + BEAM_DUR }; }
+    function beamOpacity(now, i){ const { start, end } = instrumentWindow(i); if(now < start || now > end) return 0; const p = (now - start)/BEAM_DUR; return 1 - Math.max(0, Math.min(1, p)); }
+
+    /*************** RADAR EFFECT ***************/
+    function spawnPing(now){ const el=document.createElementNS('http://www.w3.org/2000/svg','circle'); el.setAttribute('cx',arcState.cx); el.setAttribute('cy',arcState.cy); el.setAttribute('r',0); el.setAttribute('fill','none'); el.setAttribute('stroke','var(--ping)'); el.setAttribute('stroke-width',RADAR_STROKE); el.setAttribute('opacity','0.95'); groups.effects.appendChild(el); pings.push({el,start:now}); }
+    function spawnSpark(now,pingR){ const cols=['var(--spark-purple)','var(--spark-orange)','var(--spark-yellow)']; const color=cols[Math.floor(Math.random()*cols.length)]; const angle=Math.random()*Math.PI*2; const driftX=(Math.random()*10-5), driftY=(Math.random()*10-5); const el=document.createElementNS('http://www.w3.org/2000/svg','circle'); el.setAttribute('r',3.5); el.setAttribute('fill',color); el.setAttribute('filter','url(#sparkGlow)'); el.setAttribute('opacity','1'); groups.effects.appendChild(el); sparks.push({el,start:now,angle,baseR:pingR,driftX,driftY}); }
+
+    function drawArcs(now){
+      const { cx, cy, R, spm, visScale } = arcState;
+
+      // radar pings
+      if(now >= nextPingAt){ spawnPing(now); nextPingAt = now + PING_PERIOD; }
+      for(let i=pings.length-1; i>=0; i--){ const p=pings[i]; const e=(now-p.start)/1000; const r=e * RADAR_SPEED * spm; if(r>R*1.15){ p.el.remove(); pings.splice(i,1); continue; } p.el.setAttribute('r', r); p.el.setAttribute('opacity', (0.9*(1 - r/(R*1.15))).toFixed(3)); }
+      const dt = now - lastTime; lastTime = now; sparkAcc += dt; if(pings.length){ const last=pings[pings.length-1]; const e=(now-last.start)/1000; const pingR=e*RADAR_SPEED*spm; while(sparkAcc >= SPARK_SPAWN){ spawnSpark(now, pingR); sparkAcc -= SPARK_SPAWN; } }
+      for(let i=sparks.length-1;i>=0;i--){ const s=sparks[i]; const p=(now - s.start)/SPARK_TTL; if(p>=1){ s.el.remove(); sparks.splice(i,1); continue; } const r=s.baseR + p*6; const [x,y]=polar(cx,cy,r,s.angle); s.el.setAttribute('cx', (x + s.driftX*p).toFixed(2)); s.el.setAttribute('cy', (y + s.driftY*p).toFixed(2)); s.el.setAttribute('opacity', (1-p).toFixed(3)); }
+
+      // FOV wedges (scaled to make 20″ max visible)
+      instruments.forEach((inst,i)=>{
+        const theta = inst.seconds * SEC2RAD * visScale; // scaled radians
+        const half = theta / 2; // symmetric around horizontal axis
+        const a0 = -half, a1 = +half; // horizontal only
+        const [x0,y0] = polar(cx,cy,R,a0); const [x1,y1] = polar(cx,cy,R,a1);
+
+        // Filled wedge + thin outline arc for clarity
+        const wedge = ensurePath(`wedge-${inst.key}`, `${inst.color}22`, inst.color);
+        const largeArc = (Math.abs(a1-a0) > Math.PI)?1:0; // probably 0
+        wedge.setAttribute('d', `M ${cx} ${cy} L ${x0} ${y0} A ${R} ${R} 0 ${largeArc} 1 ${x1} ${y1} Z`);
+
+        // opacity anim synced
+        const op = beamOpacity(now,i); wedge.style.opacity = op;
+
+        // instrument tile bottom-glow when active
+        const card = ticketRefs[inst.key];
+        if(op > 0){
+          card.style.boxShadow = `inset 0 -14px 26px ${inst.color}55, 0 10px 24px ${inst.color}33`;
+          card.style.transform = 'translateY(-2px)';
+        } else {
+          card.style.boxShadow = '';
+          card.style.transform = '';
+        }
+      });
+    }
+
+    /*************** LINE BARS (SYNCED) ***************/
+    let lineLayout = { margin:0, leftW:0, startX:0, usableW:0, rows:[] };
+    function buildLineSVG(){ const { w, h } = sizeOf(lineBox); lineSVG.setAttribute('viewBox',`0 0 ${w} ${h}`); lineSVG.innerHTML=''; const M=Math.floor(w*0.05); const leftW=Math.max(160, Math.floor(w*0.30)); const startX=M+leftW+10; const usableW=Math.max(60, w-startX-M-8); const rowH=h/(instruments.length+1);
+      const bl=document.createElementNS('http://www.w3.org/2000/svg','line'); bl.setAttribute('x1',M); bl.setAttribute('y1',h-1); bl.setAttribute('x2',w-M); bl.setAttribute('y2',h-1); bl.setAttribute('stroke','var(--grid)'); bl.setAttribute('stroke-width','1'); lineSVG.appendChild(bl);
+      lineLayout={ margin:M, leftW, startX, usableW, rows:[] };
+      instruments.forEach((inst,i)=>{ const y=rowH*(i+1); const lab=document.createElementNS('http://www.w3.org/2000/svg','text'); lab.setAttribute('x', M+leftW); lab.setAttribute('y', y); lab.setAttribute('text-anchor','end'); lab.setAttribute('dominant-baseline','middle'); lab.setAttribute('class','label'); lab.setAttribute('fill','var(--text)'); lab.textContent=`${inst.seconds}″ ${inst.name}`; lineSVG.appendChild(lab); const r=document.createElementNS('http://www.w3.org/2000/svg','rect'); r.setAttribute('x', startX); r.setAttribute('y', y-3); r.setAttribute('width',0); r.setAttribute('height',6); r.setAttribute('fill',inst.color); lineSVG.appendChild(r); const v=document.createElementNS('http://www.w3.org/2000/svg','text'); v.setAttribute('x', startX+4); v.setAttribute('y', y-8); v.setAttribute('class','label'); v.setAttribute('fill',inst.color); lineSVG.appendChild(v); lineLayout.rows.push({ y, rect:r, value:v, inst }); }); }
+
+    function drawLines(now){ const errors = instruments.map(inst=>mmError(currentDistance, inst.seconds)); const maxErr = Math.max(...errors,1e-9); instruments.forEach((inst,i)=>{ const row=lineLayout.rows[i]; const { start } = instrumentWindow(i); const p=Math.max(0, Math.min(1, (now - start)/BEAM_DUR)); const full=(mmError(currentDistance,inst.seconds)/maxErr)*lineLayout.usableW; const len=full*p; row.rect.setAttribute('width', len); row.value.setAttribute('x', lineLayout.startX + len + 6); row.value.setAttribute('y', row.y); row.value.setAttribute('dominant-baseline','middle'); row.value.textContent = p>=1 ? `${fmtMM(mmError(currentDistance,inst.seconds))} mm` : ''; }); }
+
+    /*************** RAF ***************/
+    function rafLoop(t){ drawArcs(t); drawLines(t); requestAnimationFrame(rafLoop); }
+
+    /*************** CALCS ***************/
+    function updateMMs(){ instruments.forEach(inst=>{ mmRefs[inst.key].textContent = fmtMM(mmError(currentDistance,inst.seconds)); }); }
+    function updateCalcs(){ const D=currentDistance; const parts = instruments.map(inst=>{ const thetaArc=inst.seconds; const thetaRad=thetaArc*SEC2RAD; const tanTheta=Math.tan(thetaRad); const mm=mmError(D,thetaArc); return `<div><span class=\"font-semibold\">${inst.seconds}″ ${inst.name}</span><br>θ(rad) = ${thetaArc} × π/(180×3600) = ${thetaRad.toExponential(6)}<br>tan(θ) = ${tanTheta.toExponential(6)}<br>Error = D × tan(θ) × 1000 = ${D.toFixed(0)} × ${tanTheta.toExponential(6)} × 1000 = <span style=\"color:var(--pink)\">${fmtMM(mm)}</span> mm</div>`; }); document.getElementById('calcBody').innerHTML = parts.join(''); }
+
+    function refreshAll(){ buildArcSVG(); buildLineSVG(); updateMMs(); updateCalcs(); animStart = performance.now(); lastTime = performance.now(); nextPingAt = performance.now(); }
+
+    function onDistanceInput(){ const raw = Number(distanceSlider.value); const snapped=snapDistance(raw); if(snapped!==currentDistance){ currentDistance=snapped; distanceSlider.value=snapped; distanceLabel.textContent=`Distance: ${snapped} m`; refreshAll(); } else { distanceLabel.textContent=`Distance: ${snapped} m`; updateCalcs(); } const pct=(snapped-1)/(5000-1)*100; distanceSlider.style.setProperty('--fill-pct', pct+'%'); updateMMs(); }
+
+    window.addEventListener('resize', refreshAll);
+    distanceSlider.addEventListener('input', onDistanceInput);
+    distanceSlider.addEventListener('change', onDistanceInput);
+
+    function boot(){ distanceLabel.textContent=`Distance: ${currentDistance} m`; initTheme(); refreshAll(); requestAnimationFrame(rafLoop); }
+    boot();
+  </script>
+</body>
+</html>

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Neumorphic Satellite Radar — Offline Demo (Hard-wired)</title>
+
+<style>
+  :root{
+    --bg:#eaeef3; --ink:#1b2540; --muted:#6b7280;
+    --shadow-light:rgba(255,255,255,.95); --shadow-dark:rgba(163,177,198,.6);
+    --radar-ring:#9fb0cf40; --radar-spoke:#9fb0cf30; --radar-text:#90a4c9;
+    --sat-gnss:#3b82f6; --sat-star:#22c55e; --sat-other:#fb923c; --sat-iss:#ffffff;
+    --trail:#aac8ff; --tooltip-bg:#0b1538; --tooltip-ink:#e5edff; --btn-text:#0b1227;
+  }
+  body.theme-dark{
+    --bg:#0e1627; --ink:#e6eefc; --muted:#95a4c7;
+    --shadow-light:rgba(70,90,140,.35); --shadow-dark:rgba(0,0,0,.6);
+    --radar-ring:#90a4c94a; --radar-spoke:#90a4c92a; --radar-text:#a8c4ff;
+    --sat-gnss:#93c5fd; --sat-star:#86efac; --sat-other:#fdba74; --sat-iss:#ffffff;
+    --trail:#bcd8ff; --tooltip-bg:#0b1538; --tooltip-ink:#e5edff; --btn-text:#0a0f1f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);background:var(--bg);
+       font:14.5px/1.35 Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .neo{background:var(--bg);border-radius:22px;
+       box-shadow:14px 14px 28px var(--shadow-dark),-14px -14px 28px var(--shadow-light)}
+  .wrap{display:flex;flex-direction:column;gap:18px;padding:18px}
+  .skyShell{position:relative;padding:12px}
+  .controls{padding:16px}
+  .grid2{display:grid;gap:14px}
+  @media (min-width:900px){ .controls .grid2{grid-template-columns:1fr 1fr 1fr} }
+
+  .iconBtn{appearance:none;border:none;cursor:pointer;font-size:18px;line-height:1;
+           padding:10px 12px;border-radius:12px;color:var(--ink);background:var(--bg);
+           box-shadow:8px 8px 16px var(--shadow-dark),-8px -8px 16px var(--shadow-light)}
+  .btn{appearance:none;border:none;padding:10px 12px;border-radius:12px;cursor:pointer;font-weight:600;
+       background:var(--bg);color:var(--ink);
+       box-shadow:6px 6px 12px var(--shadow-dark),-6px -6px 12px var(--shadow-light)}
+  #load{background:#ffd400;color:var(--btn-text);
+        box-shadow:0 0 12px #ffd400,0 0 28px #ff9f00,6px 6px 12px var(--shadow-dark),-6px -6px 12px var(--shadow-light)}
+  #clear{background:#ff3b3b;color:#fff;
+         box-shadow:0 0 12px #ff3b3b,0 0 28px #ff0000,6px 6px 12px var(--shadow-dark),-6px -6px 12px var(--shadow-light)}
+
+  select,input[type="text"],input[type="number"]{
+    width:100%;padding:10px 12px;border:none;border-radius:12px;color:var(--ink);background:var(--bg);
+    box-shadow:inset 5px 5px 10px var(--shadow-dark),inset -5px -5px 10px var(--shadow-light);outline:none}
+  .chip{padding:6px 10px;border-radius:999px;background:var(--bg);
+        box-shadow:inset 2px 2px 5px var(--shadow-dark),inset -2px -2px 5px var(--shadow-light);
+        font-size:12px;cursor:pointer;user-select:none}
+  .chip input{vertical-align:-1px;margin-right:6px}
+  .tag{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;font-size:12px;background:var(--bg);
+       box-shadow:inset 2px 2px 5px var(--shadow-dark),inset -2px -2px 5px var(--shadow-light);color:var(--muted)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .h{font-weight:700;font-size:16px;margin:2px 0 10px}
+  .small{color:var(--muted);font-size:12.5px}
+  .footer{position:fixed;right:10px;bottom:8px;font-size:12px;color:#90a0c6;user-select:none;opacity:.85}
+
+  .topRight{position:absolute;right:14px;top:14px;display:flex;gap:8px;z-index:3}
+  .svgWrap{max-width:1200px;margin:0 auto}
+  svg#sky{
+    width:100%;height:auto;display:block;border-radius:20px;
+    box-shadow:inset 20px 20px 34px rgba(0,0,0,.15),inset -20px -20px 34px rgba(255,255,255,.12),0 12px 24px rgba(0,0,0,.2);
+    background:radial-gradient(1600px 1600px at 50% 50%,#0b1530 0%,#09122b 60%,#071027 100%)}
+  body.theme-light svg#sky{
+    background:radial-gradient(1600px 1600px at 50% 50%,#e3e9f5 0%,#dae2f2 60%,#d0daee 100%)}
+  .hudText{fill:var(--radar-text);font-size:12px;letter-spacing:1px}
+  .ring{stroke:var(--radar-ring);fill:none;stroke-width:1}
+  .spoke{stroke:var(--radar-spoke);stroke-width:1}
+  .sat{cursor:pointer}
+  .sat.gnss  circle{fill:var(--sat-gnss)}
+  .sat.star  circle{fill:var(--sat-star)}
+  .sat.other circle{fill:var(--sat-other)}
+  .sat text{fill:#e8f0ff;font-size:10px}
+  .sat .flag{font-size:12px}
+  .iss text{font-size:18px}
+
+  .tip{position:fixed;left:16px;bottom:16px;z-index:5;background:var(--tooltip-bg);color:var(--tooltip-ink);
+       padding:12px 14px;border-radius:12px;box-shadow:0 12px 24px rgba(0,0,0,.35);min-width:240px;display:none}
+  .note{
+    position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:10;
+    background:#ffe9d5;color:#8a3b00;padding:10px 14px;border-radius:12px;box-shadow:0 12px 24px rgba(0,0,0,.2);font-size:12.5px
+  }
+
+  /* Logs */
+  details#logPanel{margin-top:8px}
+  details#logPanel > summary{
+    list-style:none; cursor:pointer; padding:10px 12px; border-radius:12px; user-select:none;
+    background:var(--bg); color:var(--ink);
+    box-shadow:6px 6px 12px var(--shadow-dark),-6px -6px 12px var(--shadow-light);
+    display:flex; align-items:center; gap:8px; font-weight:600;
+  }
+  .logBody{max-height:260px; overflow:auto; padding:10px; border-radius:12px;
+           background:var(--bg); box-shadow:inset 5px 5px 10px var(--shadow-dark),inset -5px -5px 10px var(--shadow-light)}
+  .logLine{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; font-size:12px; white-space:pre-wrap; margin:0}
+  .logTime{opacity:.7}
+  .logErr{color:#ff6b6b}
+  .logOk{color:#22c55e}
+</style>
+</head>
+<body class="theme-dark">
+  <!-- Data stamp -->
+  <div class="note" id="dataNote">Ephemeris: <b>synthetic/offline</b> — generated today</div>
+
+  <div class="wrap">
+    <!-- SKY -->
+    <section class="skyShell neo">
+      <div class="topRight">
+        <button class="iconBtn" id="zoomIn"  title="Zoom in">➕</button>
+        <button class="iconBtn" id="zoomOut" title="Zoom out">➖</button>
+        <button class="iconBtn" id="zoomFit" title="Reset zoom">🔄</button>
+        <button class="iconBtn" id="themeBtn" title="Light/Dark">🌙</button>
+      </div>
+
+      <div class="svgWrap">
+        <svg id="sky" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg" aria-label="Sky Radar">
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <g id="grid"></g>
+          <g id="view" transform="translate(0,0) scale(1)">
+            <g id="trails"></g>
+            <g id="sats"></g>
+          </g>
+          <text class="hudText" x="500" y="24"  text-anchor="middle">N • NNE • NE • ENE • E • ESE • SE • SSE</text>
+          <text class="hudText" x="500" y="990" text-anchor="middle">S • SSW • SW • WSW • W • WNW • NW • NNW</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- CONTROLS -->
+    <section class="controls neo">
+      <div class="grid2">
+        <div>
+          <div class="h">Location</div>
+          <div class="row" style="margin-bottom:8px">
+            <label class="chip"><input type="radio" name="locMode" value="manual" checked>Manual Lat-Lon</label>
+            <label class="chip"><input type="radio" name="locMode" value="gps">Use GPS</label>
+          </div>
+          <div id="locManual">
+            <div class="row">
+              <input id="lat" type="number" step="0.000001" placeholder="Latitude" value="28.613900">
+              <input id="lon" type="number" step="0.000001" placeholder="Longitude" value="77.209000">
+              <input id="alt" type="number" step="1" placeholder="Alt (m)" value="0">
+            </div>
+            <div class="row" style="margin-top:8px"><button class="btn" id="applyManual">Apply</button></div>
+          </div>
+          <div id="locGPS" style="display:none">
+            <div class="row"><button class="btn" id="useGPS">Use My Location</button></div>
+            <div class="small">Uses browser geolocation (permission required).</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="h">Time</div>
+          <div class="row">
+            <button class="btn" id="back15">⏮ −15m</button>
+            <button class="btn" id="play">▶️ Play</button>
+            <button class="btn" id="fwd15">⏭ +15m</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="timeSlider" type="range" min="-720" max="720" value="0" step="1" style="width:100%">
+          </div>
+          <div class="row" style="margin-top:6px">
+            <span class="tag" id="clockLocal">—</span>
+            <span class="tag" id="clockUTC">—</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="h">Satellites</div>
+          <div class="row" style="margin-bottom:6px">
+            <span class="tag"><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="var(--sat-other)"/></svg> LEO/Other</span>
+            <span class="tag"><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="var(--sat-gnss)"/></svg> GNSS</span>
+            <span class="tag"><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="var(--sat-star)"/></svg> Starlink</span>
+            <span class="tag">🛸 ISS</span>
+            <span class="tag">🇮🇳 Indian</span>
+          </div>
+          <div class="row">
+            <label class="chip"><input class="grp" data-group="gps-ops"  type="checkbox" checked>GPS</label>
+            <label class="chip"><input class="grp" data-group="glonass"  type="checkbox" checked>GLONASS</label>
+            <label class="chip"><input class="grp" data-group="galileo"  type="checkbox" checked>Galileo</label>
+            <label class="chip"><input class="grp" data-group="beidou"   type="checkbox" checked>BeiDou</label>
+            <label class="chip"><input class="grp" data-group="irnss"    type="checkbox" checked>NavIC</label>
+            <label class="chip"><input class="grp" data-group="starlink" type="checkbox" checked>Starlink</label>
+            <label class="chip"><input class="grp" data-group="stations" type="checkbox" checked>ISS</label>
+            <label class="chip"><input class="grp" data-group="active"   type="checkbox">Other Active</label>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="load">Load/Refresh Selected</button>
+            <button class="btn" id="clear">Clear</button>
+          </div>
+          <div class="row small" style="margin-top:8px; gap:12px">
+            <span class="tag" id="counts"></span>
+            <span class="tag" id="tleStamp">Ephemeris date: —</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="h">DGPS Equipment mode</div>
+          <select id="dgps">
+            <option value="auto">— Select equipment (optional) —</option>
+            <option value="hitarget">Hi-Target (multi-GNSS)</option>
+            <option value="trimbleR12i">Trimble R12i</option>
+            <option value="leicaGS18">Leica GS18</option>
+            <option value="emlidRS2">Emlid Reach RS2+</option>
+            <option value="topconHR">Topcon HiPer HR</option>
+          </select>
+          <div class="small" style="margin-top:6px">Highlights usable constellations for the chosen receiver.</div>
+          <div class="row" style="margin-top:8px">
+            <span class="tag" id="dgpsCount">DGPS usable: —</span>
+            <span class="tag" id="pdop">PDOP≈—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsible logs -->
+      <details id="logPanel" class="neo">
+        <summary>📜 Logs <span id="logCount" class="small">(0)</span></summary>
+        <div class="logBody"><div id="log"></div></div>
+      </details>
+    </section>
+  </div>
+
+  <div class="tip" id="tip"></div>
+  <div class="footer">© Vijay Parmar</div>
+
+<script>
+/* ============================================================
+   OFFLINE DEMO ENGINE
+   - No network. No satellite.js. Everything is synthetic.
+   - When you later add real SGP4, set USE_SYNTHETIC_ONLY=false.
+   ============================================================ */
+const USE_SYNTHETIC_ONLY = true;
+
+/* --- Logger ------------------------------------------------ */
+const logBox=document.getElementById('log'); const logCount=document.getElementById('logCount'); let logN=0;
+function logLine(msg,type='info'){ const p=document.createElement('div'); p.className='logLine';
+  const t=document.createElement('span'); t.className='logTime'; t.textContent='['+new Date().toLocaleTimeString()+'] ';
+  const m=document.createElement('span'); m.textContent=msg; if(type==='error')m.classList.add('logErr'); if(type==='ok')m.classList.add('logOk');
+  p.appendChild(t); p.appendChild(m); logBox.appendChild(p); logBox.parentElement.scrollTop=logBox.parentElement.scrollHeight;
+  logN++; logCount.textContent='('+logN+')'; try{console[type==='error'?'error':'log'](msg);}catch{} }
+
+/* --- Synthetic catalog (compact but varied) ---------------- */
+const SYNTH_DATE = new Date().toISOString().slice(0,10);
+const SYNTH = [
+  // group, name, periodMin, dir(+1 cw / -1 ccw), phaseOffset, badge
+  ['stations', 'ISS (ZARYA)',   92.7,  -1, 0.05,  'iss'],
+  ['starlink','STARLINK-3001',  95.0,   1, 0.10,  'star'],
+  ['starlink','STARLINK-3209',  95.0,   1, 0.28,  'star'],
+  ['starlink','STARLINK-3135',  95.0,   1, 0.60,  'star'],
+  ['gps-ops', 'GPS III SV02',  717.0,  -1, 0.00,  'gnss'],
+  ['gps-ops', 'GPS IIR SV15',  717.0,  -1, 0.25,  'gnss'],
+  ['glonass', 'COSMOS-2557',   717.0,   1, 0.35,  'gnss'],
+  ['galileo', 'GALILEO-FOC FM7',717.0,  1, 0.50,  'gnss'],
+  ['beidou',  'BEIDOU-3 M23',  717.0,  -1, 0.65,  'gnss'],
+  ['irnss',   'NAVIC-1I',      717.0,   1, 0.80,  'gnss'],
+  ['active',  'YAOGAN-XX',     105.0,  -1, 0.15,  'other']
+];
+
+/* --- UI state --------------------------------------------- */
+const MAX_EL=60, CENTER={x:500,y:500,R:460};
+const state={
+  theme:'dark', zoom:1, pan:{x:0,y:0},
+  playing:false, offsetMin:0,
+  observer:{lat:28.6139, lon:77.2090, alt:0},
+  sats:[], dgps:'auto'
+};
+const groupsMeta={
+  'gps-ops':{label:'GPS'},'glonass':{label:'GLONASS'},'galileo':{label:'Galileo'},
+  'beidou':{label:'BeiDou'},'irnss':{label:'NavIC'},'starlink':{label:'Starlink'},
+  'stations':{label:'Stations'},'active':{label:'Other Active'}
+};
+const dgpsProfiles={
+  auto:{groups:['gps-ops','glonass','galileo','beidou','irnss']},
+  hitarget:{groups:['gps-ops','glonass','galileo','beidou','irnss']},
+  trimbleR12i:{groups:['gps-ops','glonass','galileo','beidou','irnss']},
+  leicaGS18:{groups:['gps-ops','glonass','galileo','beidou','irnss']},
+  emlidRS2:{groups:['gps-ops','glonass','galileo','beidou']},
+  topconHR:{groups:['gps-ops','glonass','galileo','beidou','irnss']}
+};
+function kindForGroup(g){ return g==='starlink'?'star':(['gps-ops','glonass','galileo','beidou','irnss'].includes(g)?'gnss':(g==='stations'?'iss':'other')); }
+function isIndian(name){ return /NAVIC|IRNSS|GSAT|INSAT/i.test(name); }
+
+/* --- Build grid ------------------------------------------- */
+const grid=document.getElementById('grid');
+function buildGrid(){
+  grid.innerHTML='';
+  const {x,y,R}=CENTER;
+  const outer=nsvg('circle',{cx:x,cy:y,r:R, class:'ring'}); grid.appendChild(outer);
+  for(let e=10;e<=60;e+=10){
+    const rr=R*(1 - e/60);
+    grid.appendChild(nsvg('circle',{cx:x,cy:y,r:rr, class:'ring'}));
+    grid.appendChild(nsvg('text',{x:x+rr+6,y:y+4, class:'hudText'}, `${e}°`));
+  }
+  for(let a=0;a<360;a+=30){
+    const rad=(a-90)*Math.PI/180;
+    grid.appendChild(nsvg('line',{x1:x,y1:y,x2:x+R*Math.cos(rad),y2:y+R*Math.sin(rad), class:'spoke'}));
+  }
+}
+
+/* --- SVG helpers ------------------------------------------ */
+function nsvg(tag,attrs,text){ const el=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  for(const k in attrs) el.setAttribute(k,attrs[k]); if(text!=null) el.textContent=text; return el; }
+const gView=document.getElementById('view'), gSats=document.getElementById('sats'), gTrails=document.getElementById('trails'), tip=document.getElementById('tip');
+
+/* --- Synthetic propagation --------------------------------
+   We create plausible az/el for each satellite:
+   - az moves linearly (dir*360/period)
+   - el is a smooth sin wave between 0..60 with phase offset
+   This is NOT physically accurate — for offline/demo only.
+------------------------------------------------------------ */
+function synthCompute(list, when){
+  const t = when.getTime()/60000; // minutes
+  const out=[];
+  for(const s of list){
+    const per=s.periodMin, dir=s.dir, phase=s.phase;
+    const az = ((dir* (t/per)*360 + phase*360)%360 + 360)%360;
+    const el = 30 + 30*Math.sin(2*Math.PI*((t/per)+phase)*1.2); // vary 0..60
+    if(el>=0 && el<=60){
+      out.push({...s, az, el});
+    }
+  }
+  return out;
+}
+function pol2xy(az,el){ const r=CENTER.R*(1 - el/60); const a=(az-90)*Math.PI/180;
+  return {x:CENTER.x + r*Math.cos(a), y:CENTER.y + r*Math.sin(a)}; }
+
+/* --- Create catalog (filtered by group checkboxes) -------- */
+function buildCatalog(){
+  const enabled = [...document.querySelectorAll('.grp')].filter(b=>b.checked).map(b=>b.dataset.group);
+  const list=[];
+  SYNTH.forEach((r,i)=>{
+    const [group,name,period,dir,phase,badge]=r;
+    if(!enabled.includes(group)) return;
+    list.push({
+      id:i, name, group,
+      periodMin:period, dir, phase,
+      kind:kindForGroup(group),
+      iss:badge==='iss', indian:isIndian(name)
+    });
+  });
+  state.sats=list;
+  logLine(`Loaded ${list.length} synthetic satellites for selected groups.`, list.length?'ok':'error');
+}
+
+/* --- Draw -------------------------------------------------- */
+function clearSky(){ gSats.innerHTML=''; gTrails.innerHTML=''; tip.style.display='none'; }
+function drawTrails(list, when){
+  const span=30, step=3; const frag=document.createDocumentFragment();
+  for(const s of list){
+    const grp=nsvg('g',{}); 
+    for(let dt=-span; dt<=span; dt+=step){
+      const pp = synthCompute([s], new Date(when.getTime()+dt*60000))[0];
+      if(!pp) continue; const {x,y}=pol2xy(pp.az,pp.el);
+      const alpha=0.08*(1-Math.abs(dt)/span);
+      grp.appendChild(nsvg('circle',{cx:x,cy:y,r:2, fill:`rgba(170,200,255,${alpha})`}));
+    }
+    frag.appendChild(grp);
+  }
+  gTrails.appendChild(frag);
+}
+function drawSats(list){
+  const frag=document.createDocumentFragment();
+  for(const s of list){
+    const {x,y}=pol2xy(s.az,s.el);
+    const g=nsvg('g',{class:`sat ${s.kind} ${s.iss?'iss':''}`, filter:'url(#glow)'});
+    if(s.iss) g.appendChild(nsvg('text',{x:x-9,y:y+7},'🛸'));
+    else      g.appendChild(nsvg('circle',{cx:x,cy:y,r:4}));
+    g.appendChild(nsvg('text',{x:x+6,y:y-6}, s.iss?'ISS':s.name.split(' ')[0].slice(0,14)));
+    if(s.indian) g.appendChild(nsvg('text',{x:x-8,y:y+16, class:'flag'},'🇮🇳'));
+    g.addEventListener('click',()=>{
+      tip.innerHTML = `<div style="font-weight:700;margin-bottom:6px">${s.name}</div>
+        <div>Group: ${groupsMeta[s.group].label}</div>
+        <div>Azimuth: ${s.az.toFixed(1)}°</div>
+        <div>Elevation: ${s.el.toFixed(1)}°</div>
+        <div>${s.indian?'🇮🇳 Indian satellite':''} ${s.iss?'🛸 ISS':''}</div>
+        <div class="small" style="margin-top:6px;color:#9fb0ff">Synthetic ephemeris (offline demo)</div>`;
+      tip.style.display='block';
+    });
+    frag.appendChild(g);
+  }
+  gSats.appendChild(frag);
+}
+function updateCounts(list){
+  const by={gnss:0,star:0,iss:0,other:0,indian:0};
+  list.forEach(s=>{by[s.kind]++; if(s.iss)by.iss++; if(s.indian)by.indian++;});
+  document.getElementById('counts').textContent =
+    `Visible: ${list.length} • GNSS: ${by.gnss} • Starlink: ${by.star} • ISS: ${by.iss} • Indian: ${by.indian}`;
+  // DGPS
+  const prof=dgpsProfiles[state.dgps]||dgpsProfiles.auto;
+  const usable=list.filter(s=>prof.groups.includes(s.group));
+  document.getElementById('dgpsCount').textContent=`DGPS usable: ${usable.length}`;
+  document.getElementById('pdop').textContent = `PDOP≈${usable.length<4?9.9:(12 - (usable.reduce((a,b)=>a+b.el,0)/usable.length)/10 - 1.2).toFixed(2)}`;
+}
+
+/* --- Main compute/draw pipeline --------------------------- */
+function computeAndDraw(){
+  clearSky();
+  const when=new Date(Date.now()+state.offsetMin*60000);
+  const visible = synthCompute(state.sats, when);
+  drawTrails(visible, when); drawSats(visible); updateCounts(visible);
+}
+
+/* --- UI bindings ------------------------------------------ */
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function applyView(){ document.getElementById('view').setAttribute('transform',`translate(${state.pan.x},${state.pan.y}) scale(${state.zoom})`); }
+document.getElementById('zoomIn').onclick = ()=>{ state.zoom=clamp(state.zoom*1.2,0.5,6); applyView(); };
+document.getElementById('zoomOut').onclick=  ()=>{ state.zoom=clamp(state.zoom/1.2,0.5,6); applyView(); };
+document.getElementById('zoomFit').onclick=  ()=>{ state.zoom=1; state.pan={x:0,y:0}; applyView(); };
+document.getElementById('sky').addEventListener('wheel',(e)=>{ e.preventDefault(); state.zoom=clamp(state.zoom*(e.deltaY<0?1.1:0.9),0.5,6); applyView(); },{passive:false});
+
+document.getElementById('themeBtn').onclick=()=>{
+  const b=document.body; if(b.classList.contains('theme-dark')){ b.classList.remove('theme-dark'); b.classList.add('theme-light'); document.getElementById('themeBtn').textContent='🌞'; }
+  else { b.classList.remove('theme-light'); b.classList.add('theme-dark'); document.getElementById('themeBtn').textContent='🌙'; }
+};
+
+function syncClocks(){ const d=new Date(Date.now()+state.offsetMin*60000);
+  document.getElementById('clockLocal').textContent=d.toLocaleString();
+  document.getElementById('clockUTC').textContent='UTC '+d.toISOString().substring(11,19);
+}
+document.getElementById('timeSlider').oninput = e=>{ state.offsetMin=+e.target.value; syncClocks(); computeAndDraw(); };
+document.getElementById('back15').onclick   = ()=>{ state.offsetMin-=15; document.getElementById('timeSlider').value=state.offsetMin; syncClocks(); computeAndDraw(); };
+document.getElementById('fwd15').onclick    = ()=>{ state.offsetMin+=15; document.getElementById('timeSlider').value=state.offsetMin; syncClocks(); computeAndDraw(); };
+document.getElementById('play').onclick     = ()=>{ state.playing=!state.playing; document.getElementById('play').textContent=state.playing?'⏸ Pause':'▶️ Play'; };
+function tick(){ if(state.playing){ state.offsetMin+=0.25; document.getElementById('timeSlider').value=Math.round(state.offsetMin); syncClocks(); computeAndDraw(); } requestAnimationFrame(tick); }
+
+document.getElementById('load').onclick = ()=>{ buildCatalog(); computeAndDraw(); };
+document.getElementById('clear').onclick= ()=>{ state.sats=[]; clearSky(); updateCounts([]); logLine('Cleared.', 'ok'); };
+
+document.getElementById('dgps').onchange = e=>{
+  state.dgps=e.target.value;
+  const prof=dgpsProfiles[state.dgps]||dgpsProfiles.auto;
+  document.querySelectorAll('.grp').forEach(b=>{
+    if(['gps-ops','glonass','galileo','beidou','irnss'].includes(b.dataset.group)){
+      b.checked = prof.groups.includes(b.dataset.group);
+    }
+  });
+  buildCatalog(); computeAndDraw();
+};
+
+document.querySelectorAll('input[name="locMode"]').forEach(r=>r.addEventListener('change',()=>{
+  const v=document.querySelector('input[name="locMode"]:checked').value;
+  document.getElementById('locManual').style.display = v==='manual'?'block':'none';
+  document.getElementById('locGPS').style.display    = v==='gps'?'block':'none';
+}));
+document.getElementById('applyManual').onclick=()=>{
+  const lat=parseFloat(document.getElementById('lat').value), lon=parseFloat(document.getElementById('lon').value), alt=parseFloat(document.getElementById('alt').value)||0;
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)){ alert('Enter valid lat/lon'); return; }
+  state.observer={lat,lon,alt}; computeAndDraw(); logLine(`Observer set to ${lat.toFixed(4)}, ${lon.toFixed(4)} alt ${alt}m`, 'ok');
+};
+document.getElementById('useGPS').onclick=()=>{
+  if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
+  navigator.geolocation.getCurrentPosition(p=>{
+    state.observer={lat:p.coords.latitude, lon:p.coords.longitude, alt:Math.round(p.coords.altitude||0)};
+    computeAndDraw(); logLine('Observer set from GPS', 'ok');
+  },e=>{ alert('Unable to get location'); logLine('Geolocation error: '+(e.message||e), 'error'); });
+};
+
+/* --- Build grid & initial state --------------------------- */
+function buildGridSVG(){
+  buildGrid();
+  // Note stamps
+  document.getElementById('tleStamp').textContent = `Ephemeris date: ${SYNTH_DATE} (synthetic offline)`;
+  document.getElementById('dataNote').innerHTML = `Ephemeris: <b>synthetic/offline</b> — generated ${new Date().toLocaleString()}`;
+  logLine('Offline synthetic mode active. No internet required.', 'ok');
+}
+
+function init(){
+  buildGridSVG(); syncClocks(); buildCatalog(); computeAndDraw(); requestAnimationFrame(tick);
+}
+init();
+</script>
+</body>
+</html>

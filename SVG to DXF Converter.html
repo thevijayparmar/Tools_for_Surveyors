@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Offline SVG → DXF Converter</title>
+<style>
+  :root{
+    --bg:#0f172a;       /* slate-900 */
+    --panel:#0b1229;    /* deep panel */
+    --ink:#e5e7eb;      /* gray-200 */
+    --muted:#94a3b8;    /* slate-400 */
+    --accent:#22d3ee;   /* cyan-400 */
+    --danger:#ef4444;   /* red-500 */
+    --ok:#22c55e;       /* green-500 */
+    --border:#1f2a44;   /* subtle border */
+  }
+  html,body{height:100%}
+  body{
+    margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    background:linear-gradient(180deg,#0a0f24 0%, #0d1430 100%); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .wrap{ width:min(1100px,95vw); }
+  .card{
+    background:linear-gradient(180deg,var(--panel), #0d1733);
+    border:1px solid var(--border);
+    border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    padding:22px 22px 6px; backdrop-filter: blur(6px);
+  }
+  h1{ font-size:24px; letter-spacing:.3px; margin:0 0 6px }
+  .sub{ color:var(--muted); margin:0 0 18px }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px }
+  .panel{ border:1px dashed var(--border); border-radius:12px; padding:14px; min-height:120px }
+  .dropzone{
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; cursor:pointer; transition:all .2s ease;
+    background:rgba(255,255,255,.02);
+  }
+  .dropzone:hover{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(34,211,238,.2) inset }
+  .controls label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px }
+  .controls input[type="number"],
+  .controls input[type="text"],
+  .controls input[type="range"]{
+    width:100%; box-sizing:border-box; background:#0c1430; color:var(--ink);
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; outline:none;
+  }
+  .controls input[type="range"]{ padding:6px 0 }
+  .row{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; margin-bottom:10px }
+  .row3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-bottom:10px }
+  .chk{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); margin:6px 0 }
+  .btns{ display:flex; gap:10px; margin-top:12px; }
+  button{
+    background:linear-gradient(180deg,#0ea5e9,#06b6d4);
+    color:#00121b; font-weight:700; border:none; border-radius:10px; padding:12px 16px; cursor:pointer;
+    box-shadow:0 6px 18px rgba(34,211,238,.25); transition:transform .1s ease, filter .2s;
+  }
+  button.secondary{ background:linear-gradient(180deg,#1f2a44,#1b2540); color:var(--ink) }
+  button.danger{ background:linear-gradient(180deg,#ef4444,#dc2626); color:white }
+  button:active{ transform:translateY(1px) }
+  .preview{
+    background:#0a1027; border:1px solid var(--border); border-radius:10px; padding:10px; overflow:auto;
+    min-height:260px; display:flex; align-items:center; justify-content:center;
+  }
+  .hidden{ display:none !important }
+  details{ border:1px solid var(--border); border-radius:10px; padding:12px; background:#0a1027; }
+  summary{ cursor:pointer; color:var(--muted); }
+  .log{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; white-space:pre-wrap; line-height:1.35; margin-top:8px; color:#d1d5db }
+  .stat{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
+  .badge{ font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:20px; color:#9ca3af; background:#0e1532 }
+  .ok{ border-color:rgba(34,197,94,.35); color:#a7f3d0 }
+  .err{ border-color:rgba(239,68,68,.35); color:#fecaca }
+  .warn{ border-color:rgba(234,179,8,.35); color:#fde68a }
+  .hl{ color:var(--accent) }
+  .foot{ color:var(--muted); font-size:12px; margin:8px 2px 14px }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Offline <span class="hl">SVG</span> → <span class="hl">DXF</span> Converter</h1>
+      <p class="sub">Runs fully in your browser. No uploads. Convert geometry from SVG to CAD‑friendly DXF.</p>
+
+      <div class="grid">
+        <!-- LEFT: File + Controls -->
+        <div class="panel">
+          <label for="file" class="dropzone" id="drop">
+            <div>
+              <div style="font-size:16px;margin-bottom:6px">Drop SVG here or click to select</div>
+              <div style="font-size:12px;color:var(--muted)">Only local parsing. Fills/gradients are ignored; geometry only.</div>
+            </div>
+            <input id="file" type="file" accept=".svg,image/svg+xml" class="hidden" />
+          </label>
+
+          <div class="controls" style="margin-top:12px">
+            <div class="row3">
+              <div>
+                <label>DXF units per SVG px</label>
+                <input id="scale" type="number" value="1" min="0" step="0.0001" />
+              </div>
+              <div>
+                <label>Decimals</label>
+                <input id="decimals" type="number" value="4" min="0" max="10" step="1" />
+              </div>
+              <div>
+                <label>Curve tolerance (px)</label>
+                <input id="tol" type="number" value="0.75" min="0.01" step="0.01" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="chk"><input id="flipY" type="checkbox" checked /> <label for="flipY">Flip Y (SVG↓ → DXF↑)</label></div>
+              <div class="chk"><input id="shiftOrigin" type="checkbox" checked /> <label for="shiftOrigin">Shift to (0,0)</label></div>
+            </div>
+            <div class="row">
+              <div class="chk"><input id="polyOnly" type="checkbox" /> <label for="polyOnly">Export all as polylines (avoid CIRCLE/LINE)</label></div>
+              <div class="chk"><input id="mergeClose" type="checkbox" checked /> <label for="mergeClose">Merge near-duplicate vertices</label></div>
+            </div>
+
+            <div class="btns">
+              <button id="convertBtn">Convert & Download DXF</button>
+              <button class="secondary" id="resetBtn">Reset</button>
+              <button class="danger" id="clearBtn">Clear SVG</button>
+            </div>
+            <div class="stat" id="stats"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Preview -->
+        <div class="panel">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+            <div style="font-weight:600">SVG Preview</div>
+            <div class="foot" id="meta"></div>
+          </div>
+          <div id="preview" class="preview">
+            <div style="color:var(--muted); font-size:13px">Preview will appear here</div>
+          </div>
+        </div>
+      </div>
+
+      <details style="margin-top:14px">
+        <summary>Logs & diagnostics</summary>
+        <div class="log" id="log"></div>
+      </details>
+
+      <div class="foot">Note: Coordinate transforms & paths are tessellated to polylines using tolerance. Styles/fills are ignored.</div>
+    </div>
+
+    <!-- Hidden workspace for geometry evaluation -->
+    <div id="workspace" class="hidden"></div>
+  </div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const logEl = $("log");
+  const statsEl = $("stats");
+  const metaEl = $("meta");
+  const previewEl = $("preview");
+  const workspace = $("workspace");
+  const drop = $("drop");
+  const fileInput = $("file");
+
+  let svgText = null;
+  let svgRoot = null;     // The parsed <svg> element mounted in workspace
+  let fileName = "output";
+
+  function log(msg, type=""){
+    const ts = new Date().toLocaleTimeString();
+    const line = `[${ts}] ${msg}`;
+    logEl.textContent += line + "\\n";
+    const badge = document.createElement("div");
+    badge.className = "badge " + (type||"");
+    badge.textContent = msg;
+    statsEl.appendChild(badge);
+  }
+
+  function resetStats(){
+    statsEl.innerHTML = "";
+  }
+
+  function clearAll(){
+    svgText = null;
+    svgRoot = null;
+    workspace.innerHTML = "";
+    previewEl.innerHTML = '<div style="color:var(--muted); font-size:13px">Preview will appear here</div>';
+    metaEl.textContent = "";
+    resetStats();
+    log("Cleared current SVG", "warn");
+  }
+
+  function handleFiles(files){
+    if(!files || !files.length) return;
+    const f = files[0];
+    fileName = (f.name||"output").replace(/\\.[^/.]+$/, "");
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      svgText = e.target.result;
+      mountSVG(svgText);
+      log("Loaded SVG: " + f.name, "ok");
+    };
+    reader.onerror = ()=> log("Error reading file", "err");
+    reader.readAsText(f);
+  }
+
+  function mountSVG(text){
+    // Reset previous
+    workspace.innerHTML = "";
+    previewEl.innerHTML = "";
+
+    // Create a sandboxed container
+    const cont = document.createElement("div");
+    cont.innerHTML = text;
+
+    // Extract first <svg>
+    const s = cont.querySelector("svg");
+    if(!s){ log("No <svg> root found", "err"); return; }
+
+    // Normalize: remove external refs, ensure viewBox exists
+    svgRoot = s;
+    workspace.appendChild(svgRoot);
+
+    // Duplicate a copy for preview (safe)
+    const previewCopy = svgRoot.cloneNode(true);
+    previewCopy.removeAttribute("width");
+    previewCopy.removeAttribute("height");
+    previewCopy.setAttribute("preserveAspectRatio","xMidYMid meet");
+    previewCopy.style.maxWidth = "100%";
+    previewCopy.style.maxHeight = "100%";
+    previewEl.appendChild(previewCopy);
+
+    // Set viewBox if missing
+    if(!svgRoot.getAttribute("viewBox")){
+      try{
+        const bb = svgRoot.getBBox();
+        svgRoot.setAttribute("viewBox", [bb.x, bb.y, bb.width, bb.height].join(" "));
+        log("Applied viewBox from bbox: " + JSON.stringify(bb), "warn");
+      }catch(e){
+        log("Could not compute viewBox; using defaults", "warn");
+        svgRoot.setAttribute("viewBox", "0 0 1000 1000");
+      }
+    }
+
+    const vb = parseViewBox(svgRoot);
+    metaEl.textContent = `viewBox: ${vb.x},${vb.y}, ${vb.w}×${vb.h}`;
+  }
+
+  function parseViewBox(svg){
+    const vb = (svg.getAttribute("viewBox")||"").trim().split(/[ ,]+/).map(Number);
+    if(vb.length===4 && vb.every(n=>Number.isFinite(n))){
+      return {x:vb[0], y:vb[1], w:vb[2], h:vb[3]};
+    }
+    // Derive from width/height
+    const w = parseFloat(svg.getAttribute("width")||"1000");
+    const h = parseFloat(svg.getAttribute("height")||"1000");
+    return {x:0, y:0, w, h};
+  }
+
+  // Geometry helpers
+  function applyMatrix(pt, m){
+    // DOMMatrix or SVGMatrix-compatible
+    if(!m) return {x:pt.x, y:pt.y};
+    return { x: pt.x*m.a + pt.y*m.c + m.e, y: pt.x*m.b + pt.y*m.d + m.f };
+  }
+
+  function round(n,dec){ const f = Math.pow(10,dec); return Math.round(n*f)/f; }
+
+  function samplePath(pathEl, tol){
+    const len = pathEl.getTotalLength();
+    const n = Math.max(2, Math.min(10000, Math.ceil(len / Math.max(0.0001, tol))));
+    const pts = [];
+    for(let i=0;i<n;i++){
+      const d = i*(len/(n-1));
+      const p = pathEl.getPointAtLength(d);
+      pts.push({x:p.x, y:p.y});
+    }
+    return pts;
+  }
+
+  function sampleEllipse(cx, cy, rx, ry, tol, stepsMin=24){
+    // Steps proportional to perimeter estimate (Ramanujan) divided by tol
+    const per = Math.PI*(3*(rx+ry) - Math.sqrt((3*rx+ry)*(rx+3*ry)));
+    const steps = Math.max(stepsMin, Math.min(10000, Math.ceil(per/Math.max(0.0001,tol))));
+    const pts = [];
+    for(let i=0;i<steps;i++){
+      const a = (i/steps)*Math.PI*2;
+      pts.push({x: cx + rx*Math.cos(a), y: cy + ry*Math.sin(a)});
+    }
+    return pts;
+  }
+
+  function parsePoints(str){
+    return (str||"").trim().split(/\\s+|,/).reduce((acc,v,i,arr)=>{
+      if(i%2===0 && arr[i+1]!==undefined){
+        const x = parseFloat(v), y = parseFloat(arr[i+1]);
+        if(Number.isFinite(x) && Number.isFinite(y)) acc.push({x,y});
+      }
+      return acc;
+    },[]);
+  }
+
+  function mergeNear(points, eps){
+    if(!points || points.length===0) return points;
+    const out=[];
+    let prev=null;
+    for(const p of points){
+      if(!prev || Math.hypot(p.x-prev.x, p.y-prev.y) > eps) { out.push(p); prev=p; }
+    }
+    return out;
+  }
+
+  function toDXF(entities){
+    let dxf = "";
+    dxf += "0\\nSECTION\\n2\\nENTITIES\\n";
+
+    for(const ent of entities){
+      if(ent.type==="LINE"){
+        dxf += "0\\nLINE\\n8\\n0\\n";
+        dxf += "10\\n"+ent.x1+"\\n20\\n"+ent.y1+"\\n30\\n0\\n";
+        dxf += "11\\n"+ent.x2+"\\n21\\n"+ent.y2+"\\n31\\n0\\n";
+      }else if(ent.type==="LWPOLYLINE"){
+        dxf += "0\\nLWPOLYLINE\\n8\\n0\\n";
+        dxf += "90\\n"+ent.pts.length+"\\n";
+        dxf += "70\\n"+(ent.closed?1:0)+"\\n";
+        for(const p of ent.pts){
+          dxf += "10\\n"+p.x+"\\n20\\n"+p.y+"\\n";
+        }
+      }else if(ent.type==="CIRCLE"){
+        dxf += "0\\nCIRCLE\\n8\\n0\\n";
+        dxf += "10\\n"+ent.cx+"\\n20\\n"+ent.cy+"\\n30\\n0\\n";
+        dxf += "40\\n"+ent.r+"\\n";
+      }
+      // 0 ends are implicit between entities
+    }
+    dxf += "0\\nENDSEC\\n0\\nEOF\\n";
+    return dxf;
+  }
+
+  function convert(){
+    resetStats();
+    if(!svgRoot){ alert("Load an SVG first."); return; }
+    const scale = parseFloat($("scale").value||"1");
+    const tol   = parseFloat($("tol").value||"0.75");
+    const dec   = Math.max(0, Math.min(10, parseInt($("decimals").value||"4",10)));
+    const flipY = $("flipY").checked;
+    const shiftOrigin = $("shiftOrigin").checked;
+    const polyOnly = $("polyOnly").checked;
+    const mergeClose = $("mergeClose").checked;
+
+    const vb = parseViewBox(svgRoot);
+    const H = vb.h;
+
+    const ents = [];
+    const ptsAll = []; // gather for global transform (shift/flip/scale)
+
+    function pushPolyline(pts, closed=false){
+      if(mergeClose) pts = mergeNear(pts, Math.max(1e-6, tol*0.5));
+      if(pts.length<2) return;
+      ents.push({type:"LWPOLYLINE", pts:[...pts], closed});
+      ptsAll.push(...pts);
+    }
+
+    function pushLine(p1,p2){
+      ents.push({type:"LINE", x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y});
+      ptsAll.push(p1,p2);
+    }
+
+    function pushCircle(cx,cy,r){
+      ents.push({type:"CIRCLE", cx, cy, r});
+      ptsAll.push({x:cx+r,y:cy}, {x:cx-r,y:cy}, {x:cx,y:cy+r}, {x:cx,y:cy-r});
+    }
+
+    function transformPts(pts, m){
+      return pts.map(p=>applyMatrix(p,m));
+    }
+
+    // Query all target elements
+    const elements = svgRoot.querySelectorAll("path,polyline,polygon,line,rect,circle,ellipse");
+    log("Found elements: " + elements.length);
+
+    elements.forEach(el=>{
+      try{
+        const m = el.getCTM && el.getCTM ? el.getCTM() : null;
+
+        if(el.tagName==="path"){
+          const pts = samplePath(el, tol);
+          pushPolyline(transformPts(pts,m), el.getAttribute("d")?.match(/[Zz]/) != null);
+          log("path → poly ("+pts.length+" pts)");
+        }
+        else if(el.tagName==="polyline"){
+          const pts = parsePoints(el.getAttribute("points"));
+          pushPolyline(transformPts(pts,m), false);
+          log("polyline ("+pts.length+")");
+        }
+        else if(el.tagName==="polygon"){
+          const pts = parsePoints(el.getAttribute("points"));
+          pushPolyline(transformPts(pts,m), true);
+          log("polygon ("+pts.length+")");
+        }
+        else if(el.tagName==="line"){
+          const p1 = {x:parseFloat(el.getAttribute("x1")||"0"), y:parseFloat(el.getAttribute("y1")||"0")};
+          const p2 = {x:parseFloat(el.getAttribute("x2")||"0"), y:parseFloat(el.getAttribute("y2")||"0")};
+          const [tp1,tp2] = transformPts([p1,p2], m);
+          if(polyOnly){
+            pushPolyline([tp1,tp2], false);
+          }else{
+            pushLine(tp1, tp2);
+          }
+          log("line");
+        }
+        else if(el.tagName==="rect"){
+          const x = parseFloat(el.getAttribute("x")||"0");
+          const y = parseFloat(el.getAttribute("y")||"0");
+          const w = parseFloat(el.getAttribute("width")||"0");
+          const h = parseFloat(el.getAttribute("height")||"0");
+          // Ignore rounded corners (rx/ry) — tessellate corners would be extra
+          const pts = [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+          pushPolyline(transformPts(pts,m), true);
+          log("rect → poly");
+        }
+        else if(el.tagName==="circle"){
+          const cx = parseFloat(el.getAttribute("cx")||"0");
+          const cy = parseFloat(el.getAttribute("cy")||"0");
+          const r  = parseFloat(el.getAttribute("r")||"0");
+          const rawPts = sampleEllipse(cx, cy, r, r, tol, 36);
+          const pts = transformPts(rawPts,m);
+          if(polyOnly){
+            pushPolyline(pts,true);
+            log("circle → poly ("+pts.length+")");
+          }else{
+            // Only safe to export as true CIRCLE if transform is uniform scale + rotation (a==d and c/b produce rotation only)
+            // We'll conservatively check for near-uniform: |a|≈|d| and |b|≈0,|c|≈0
+            if(m && (Math.abs(Math.abs(m.a)-Math.abs(m.d))>1e-6 || Math.abs(m.b)>1e-6 || Math.abs(m.c)>1e-6)){
+              pushPolyline(pts,true);
+              log("circle (non-uniform transform) → poly ("+pts.length+")");
+            }else{
+              // Transform center
+              const tc = applyMatrix({x:cx,y:cy}, m);
+              const tr = Math.abs((m?m.a:1))*r;
+              pushCircle(tc.x, tc.y, tr);
+              log("circle → CIRCLE");
+            }
+          }
+        }
+        else if(el.tagName==="ellipse"){
+          const cx = parseFloat(el.getAttribute("cx")||"0");
+          const cy = parseFloat(el.getAttribute("cy")||"0");
+          const rx = parseFloat(el.getAttribute("rx")||"0");
+          const ry = parseFloat(el.getAttribute("ry")||"0");
+          const rawPts = sampleEllipse(cx, cy, rx, ry, tol, 48);
+          pushPolyline(transformPts(rawPts,m), true);
+          log("ellipse → poly ("+rawPts.length+")");
+        }
+      }catch(err){
+        log("Error on <"+el.tagName+">: " + err.message, "err");
+      }
+    });
+
+    if(ptsAll.length===0){
+      alert("No exportable geometry found.");
+      log("No geometry exported", "err");
+      return;
+    }
+
+    // Global transforms: flip Y, shift to origin, scale, rounding
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    for(const p of ptsAll){
+      if(flipY){ p.y = (H - p.y); }
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+    }
+    if(shiftOrigin && (Number.isFinite(minX) && Number.isFinite(minY))){
+      for(const p of ptsAll){ p.x -= minX; p.y -= minY; }
+    }
+    for(const ent of ents){
+      if(ent.type==="LINE"){
+        if(flipY){ /* already applied to ptsAll refs below */ }
+        // ent holds references to ptsAll objects if built via pushLine
+      }else if(ent.type==="LWPOLYLINE"){
+        // nothing: points reference the same objects already modified
+      }else if(ent.type==="CIRCLE"){
+        if(flipY){ ent.cy = (H - ent.cy); }
+        if(shiftOrigin){
+          ent.cx -= minX; ent.cy -= minY;
+        }
+      }
+    }
+    // Apply scale + rounding
+    function scaleRound(n){ return round(n*scale, dec).toString(); }
+    for(const ent of ents){
+      if(ent.type==="LINE"){
+        ent.x1 = scaleRound(ent.x1); ent.y1 = scaleRound(ent.y1);
+        ent.x2 = scaleRound(ent.x2); ent.y2 = scaleRound(ent.y2);
+      }else if(ent.type==="LWPOLYLINE"){
+        ent.pts = ent.pts.map(p=>({x: scaleRound(p.x), y: scaleRound(p.y)}));
+      }else if(ent.type==="CIRCLE"){
+        ent.cx = scaleRound(ent.cx); ent.cy = scaleRound(ent.cy); ent.r = scaleRound(ent.r*scale);
+      }
+    }
+
+    // Build DXF
+    const dxf = toDXF(ents);
+
+    // File
+    const blob = new Blob([dxf], {type:"application/dxf"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (fileName||"output") + ".dxf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    log("DXF downloaded ("+ents.length+" entities)", "ok");
+  }
+
+  // UI events
+  drop.addEventListener("click", ()=> fileInput.click());
+  drop.addEventListener("dragover", (e)=>{ e.preventDefault(); drop.style.borderColor="var(--accent)"; });
+  drop.addEventListener("dragleave", ()=>{ drop.style.borderColor="var(--border)"; });
+  drop.addEventListener("drop", (e)=>{
+    e.preventDefault();
+    drop.style.borderColor="var(--border)";
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener("change", (e)=> handleFiles(e.target.files));
+
+  $("convertBtn").addEventListener("click", convert);
+  $("resetBtn").addEventListener("click", ()=>{
+    $("scale").value = "1";
+    $("decimals").value = "4";
+    $("tol").value = "0.75";
+    $("flipY").checked = true;
+    $("shiftOrigin").checked = true;
+    $("polyOnly").checked = false;
+    $("mergeClose").checked = true;
+    resetStats();
+    log("Settings reset", "warn");
+  });
+  $("clearBtn").addEventListener("click", clearAll);
+
+  // Warm log
+  log("Ready. Load an SVG to begin.", "ok");
+})();
+</script>
+</body>
+</html>

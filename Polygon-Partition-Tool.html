@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Polygon Partition Tool</title>
+<style>
+  :root{
+    --bg:#0f1320; --fg:#e7ecf3; --muted:#94a3b8; --ink:#1e293b; --hi:#22c55e; --err:#ef4444; --card:#111827;
+    --grid:#1f2937; --accent:#38bdf8; --panel:rgba(17,24,39,.88);
+    --blue:#3b82f6; --yellow:#f59e0b; --green:#22c55e; --pink:#ec4899; --violet:#a78bfa;
+  }
+  .light{ --bg:#f8fafc; --fg:#0b1220; --muted:#64748b; --ink:#e2e8f0; --hi:#16a34a; --err:#dc2626; --card:#ffffff; --grid:#e5e7eb; --accent:#0ea5e9; --panel:rgba(255,255,255,.92);}  
+  html,body{height:100%;margin:0}
+  body{font:14px/1.35 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);}  
+  header{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;justify-content:center;padding:.6rem .8rem;border-bottom:1px solid var(--grid);background:var(--bg);z-index:6}
+  .btn{border:1px solid var(--grid);background:linear-gradient(180deg,transparent,rgba(255,255,255,.03));color:var(--fg);padding:.42rem .6rem;border-radius:.6rem;cursor:pointer}
+  .btn[disabled]{opacity:.4;cursor:not-allowed}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap}
+  .pill{padding:.25rem .5rem;border:1px solid var(--grid);border-radius:999px;display:inline-flex;gap:.4rem;align-items:center}
+  main{max-width:1200px;margin:0 auto;padding:.6rem}
+  .canvasWrap{position:relative;width:100%;height:60vh;min-height:320px;border:1px solid var(--grid);border-radius:.8rem;overflow:hidden}
+  svg{width:100%;height:100%;display:block;background:radial-gradient( circle at 20% 10%, rgba(56,189,248,.06), transparent 40%), var(--bg)}
+  .grid line{stroke:var(--grid);stroke-opacity:.55;shape-rendering:crispEdges}
+  .pt{fill:var(--accent)}
+  .pt.inactive{fill:#9aa6b2;opacity:.4}
+  .label{font-size:12px;fill:currentColor;opacity:.5}
+  .label:hover{opacity:1}
+  .poly{fill:rgba(56,189,248,.10);stroke:var(--accent);stroke-width:2}
+  .poly.inactive{fill:transparent;stroke:#64748b;stroke-dasharray:4 4}
+  .previewBlue{stroke:var(--blue)!important;fill:color-mix(in oklab, var(--blue) 20%, transparent)}
+  .previewYellow{stroke:var(--yellow)!important;fill:color-mix(in oklab, var(--yellow) 20%, transparent)}
+  .cutLine{stroke:var(--hi);stroke-width:2;stroke-dasharray:6 6}
+  .handle{fill:var(--hi);stroke:#000;stroke-width:.6;cursor:pointer}
+  .handle.locked{fill:#6ee7b7;stroke:#064e3b}
+  .panel{margin:1rem auto;max-width:100%;background:var(--panel);border:1px solid var(--grid);border-radius:.8rem;box-shadow:0 4px 14px rgba(0,0,0,.25);overflow:hidden}
+  .panel header{padding:.6rem .8rem;border-bottom:1px solid var(--grid)}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  th,td{border-bottom:1px solid var(--grid);padding:.4rem .5rem}
+  tbody tr:nth-child(odd){background:rgba(255,255,255,.02)}
+  td[contenteditable]{outline:0;cursor:text}
+  .dragGrip{cursor:grab}
+  input[type="number"],input[type="text"],select{background:var(--card);border:1px solid var(--grid);color:var(--fg);border-radius:.5rem;padding:.35rem .5rem}
+  .credit{position:fixed;right:.8rem;bottom:.6rem;opacity:.7}
+  .log{margin:1rem auto;max-width:100%;background:var(--panel);border:1px solid var(--grid);border-radius:.8rem;overflow:hidden}
+  .log header{cursor:pointer;padding:.6rem;background:var(--card);}
+  .logBody{display:none;max-height:220px;overflow:auto;padding:.5rem}
+  .log.show .logBody{display:block}
+  .errorMsg{position:absolute;top:.5rem;left:.5rem;background:var(--err);color:#fff;padding:.3rem .6rem;border-radius:.5rem;font-weight:600;display:none;box-shadow:0 0 18px rgba(239,68,68,.7)}
+  .pill .swatch{display:inline-block;width:.8rem;height:.8rem;border-radius:999px;border:1px solid var(--grid)}
+</style>
+</head>
+<body>
+<header>
+  <button class="btn" id="loadSample">📄 Sample</button>
+  <label class="btn">📂 CSV <input id="csvFile" type="file" accept=".csv" hidden></label>
+  <button class="btn" id="undo">↩️ Undo</button>
+  <button class="btn" id="reset">🔄 Reset</button>
+  <button class="btn" id="theme">🌙</button>
+</header>
+<main>
+  <div class="canvasWrap">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glowBlue"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="var(--blue)"/></filter>
+        <filter id="glowYellow"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="var(--yellow)"/></filter>
+        <filter id="glowPart"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="white" flood-opacity=".7"/></filter>
+      </defs>
+      <g class="grid" id="grid"></g>
+      <g id="partitionsLayer"></g>
+      <g id="polyLayer"></g>
+      <g id="cutLayer"></g>
+      <g id="labels"></g>
+      <g id="measures"></g>
+    </svg>
+    <button class="btn" id="downloadSVG" title="Download SVG" style="position:absolute;top:.6rem;right:.6rem">📷</button>
+    <div class="errorMsg" id="errMsg"></div>
+  </div>
+
+  <div class="panel" id="controls">
+    <header><strong>Controls</strong></header>
+    <div style="padding:.6rem;display:grid;gap:.6rem">
+      <div class="row">
+        <span class="pill">Units <select id="unitSel"><option value="1">m</option><option value="3.28084">ft</option><option value="custom">custom</option></select><input id="unitFactor" type="number" step="0.0001" min="0.000001" value="1" style="width:84px;display:none"></span>
+        <span class="pill">Angle <input id="angle" type="range" min="0" max="179" value="0"></span>
+        <label class="pill"><input type="checkbox" id="snap"> Snap</label>
+        <span class="pill">Orientation <button class="btn" id="oriH" title="Horizontal">↔️</button><button class="btn" id="oriV" title="Vertical">↕️</button></span>
+        <span class="pill">Auto‑fit side
+          <label class="pill"><span class="swatch" style="background:var(--blue)"></span> <input type="radio" name="side" value="blue" id="sideBlue" checked> 🔵</label>
+          <label class="pill"><span class="swatch" style="background:var(--yellow)"></span> <input type="radio" name="side" value="yellow" id="sideYellow"> 🟡</label>
+        </span>
+      </div>
+      <div class="row">
+        <button class="btn" id="addRow">➕ Row</button>
+        <button class="btn" id="rebuild">🔧 Rebuild</button>
+        <span class="pill">Target <input id="targetArea" type="number" min="0" step="0.01" value="0" style="width:120px"></span>
+        <button class="btn" id="autofit">🎯 Auto‑fit</button>
+        <button class="btn" id="newCut">✂️ Apply Cut</button>
+      </div>
+      <table id="tbl">
+        <thead><tr><th>⇅</th><th>Use</th><th>Name</th><th>X</th><th>Y</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <header class="row" style="align-items:center;justify-content:space-between"><strong>Partitions</strong>
+      <div class="row">
+        <button class="btn" id="downloadAll">💾 Partitions CSV</button>
+        <button class="btn" id="downloadSummary">📊 Summary CSV</button>
+      </div>
+    </header>
+    <div style="padding:.6rem">
+      <table>
+        <thead><tr><th>Partition</th><th>Area</th><th>Perimeter</th></tr></thead>
+        <tbody id="partsBody"></tbody>
+        <tfoot><tr><th>TOTAL</th><th id="tArea">–</th><th id="tPeri">–</th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="log" id="log">
+    <header>📜 Activity Log</header>
+    <div class="logBody" id="logBody"></div>
+  </div>
+</main>
+<div class="credit">© Vijay Parmar</div>
+<script>
+// ===================== Utilities & Logging =====================
+const logBody=document.getElementById('logBody');
+function log(msg){const e=document.createElement('div');e.textContent=new Date().toLocaleTimeString()+" — "+msg;logBody.appendChild(e);logBody.scrollTop=logBody.scrollHeight}
+document.getElementById('log').querySelector('header').onclick=()=>document.getElementById('log').classList.toggle('show');
+function showErr(msg){const e=document.getElementById('errMsg');e.textContent=msg;e.style.display='block';setTimeout(()=>e.style.display='none',4500)}
+function download(name, text, mime='text/plain'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},0)}
+
+// ===================== State =====================
+const svg = document.getElementById('svg');
+const gridG = document.getElementById('grid');
+const polyLayer = document.getElementById('polyLayer');
+const partitionsLayer = document.getElementById('partitionsLayer');
+const cutLayer = document.getElementById('cutLayer');
+const labels = document.getElementById('labels');
+const measures = document.getElementById('measures');
+const tblBody = document.querySelector('#tbl tbody');
+const partsBody = document.getElementById('partsBody');
+const tArea = document.getElementById('tArea');
+const tPeri = document.getElementById('tPeri');
+const angleInput = document.getElementById('angle');
+const snapChk = document.getElementById('snap');
+const unitSel = document.getElementById('unitSel');
+const unitFactor = document.getElementById('unitFactor');
+const targetAreaInput = document.getElementById('targetArea');
+const sideBlue=document.getElementById('sideBlue');
+const sideYellow=document.getElementById('sideYellow');
+let themeLight=false;
+let pts=[];                 // {name,x,y,ok}
+let partitions=[];           // {name, poly, color}
+let stack=[];                // undo stack of remainPoly
+let handles=[{x:0,y:0,lock:false},{x:0,y:0,lock:false}];
+let remainPoly=[];           // current polygon to cut
+let cutLine=[{x:0,y:0},{x:0,y:0}];
+const nameSeq=['A','B','C','D','E'];
+const pal=['var(--blue)','var(--yellow)','var(--green)','var(--pink)','var(--violet)'];
+const tol=1e-9;
+
+// ===================== Math helpers =====================
+const clone=o=>JSON.parse(JSON.stringify(o));
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const area=(poly)=>{let s=0;for(let i=0,n=poly.length;i<n;i++){const p=poly[i],q=poly[(i+1)%n];s+=p.x*q.y-q.x*p.y;}return Math.abs(s)*0.5}
+const perimeter=(poly)=>{let s=0;for(let i=0;i<poly.length;i++){s+=dist(poly[i],poly[(i+1)%poly.length]);}return s}
+const centroid=(poly)=>{let A=0,cx=0,cy=0;for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];const w=p.x*q.y-q.x*p.y;A+=w;cx+=(p.x+q.x)*w;cy+=(p.y+q.y)*w;}A=A*0.5;return {x:cx/(6*A),y:cy/(6*A)}}
+const segIntersect=(A,B,C,D)=>{const a=B.x-A.x,b=B.y-A.y,c=D.x-C.x,d=D.y-C.y,den=a*d-b*c;if(Math.abs(den)<tol)return null;const e=C.x-A.x,f=C.y-A.y,t=(e*d-f*c)/den,u=(e*b-f*a)/den;if(t>-1e-9&&t<1+1e-9&&u>-1e-9&&u<1+1e-9)return {x:A.x+a*t,y:A.y+b*t,t,u};return null}
+const lineSide=(A,B,P)=>Math.sign((B.x-A.x)*(P.y-A.y)-(B.y-A.y)*(P.x-A.x)); // >0 left of AB
+const bbox=(poly)=>{if(!poly.length) return {minx:-100,maxx:100,miny:-100,maxy:100};let xs=poly.map(p=>p.x),ys=poly.map(p=>p.y);return {minx:Math.min(...xs),maxx:Math.max(...xs),miny:Math.min(...ys),maxy:Math.max(...ys)}}
+const nearestPointOnBoundary=(poly,P)=>{let best={x:poly[0]?.x||0,y:poly[0]?.y||0,edge:0,t:0,d:Infinity};for(let i=0;i<poly.length;i++){const A=poly[i],B=poly[(i+1)%poly.length];const vx=B.x-A.x,vy=B.y-A.y;const u=((P.x-A.x)*vx+(P.y-A.y)*vy)/((vx*vx+vy*vy)||1);const t=Math.max(0,Math.min(1,u));const X={x:A.x+vx*t,y:A.y+vy*t};const d=dist(P,X);if(d<best.d) best={...X,edge:i,t,d}}return best}
+const angleOf=(A,B)=>Math.atan2(B.y-A.y,B.x-A.x);
+const lineFromAngleThrough=(theta,through)=>[{x:through.x- Math.sin(theta)*99999,y:through.y+ Math.cos(theta)*99999},{x:through.x+ Math.sin(theta)*99999,y:through.y- Math.cos(theta)*99999}]
+const boundaryIntersections=(poly,A,B)=>{const res=[]; for(let i=0;i<poly.length;i++){const I=segIntersect(poly[i],poly[(i+1)%poly.length],A,B); if(I)res.push({x:I.x,y:I.y});} const th=angleOf(A,B); res.sort((p,q)=> (p.x*Math.cos(th)+p.y*Math.sin(th)) - (q.x*Math.cos(th)+q.y*Math.sin(th)) ); return res}
+const splitByLine=(poly,A,B)=>{const L=[],R=[];for(let i=0;i<poly.length;i++){const P=poly[i],Q=poly[(i+1)%poly.length];const sp=lineSide(A,B,P),sq=lineSide(A,B,Q);if(sp>=0) L.push(P); else R.push(P); if((sp>0&&sq<0)||(sp<0&&sq>0)){const I=segIntersect(P,Q,A,B); if(I){L.push({x:I.x,y:I.y});R.push({x:I.x,y:I.y});}}}const clean=arr=>arr.filter((p,i)=> i===0 || dist(p,arr[i-1])>1e-7);return [clean(L),clean(R)]}
+function polygonSelfIntersect(poly){for(let i=0;i<poly.length;i++){const A1=poly[i],A2=poly[(i+1)%poly.length];for(let j=i+1;j<poly.length;j++){const B1=poly[j],B2=poly[(j+1)%poly.length]; // skip adjacent
+  if(i===j || (i+1)%poly.length===j || (j+1)%poly.length===i) continue; if(segIntersect(A1,A2,B1,B2)) return true;}}return false}
+
+// ===================== Units & Formatting =====================
+function unitName(){const v=unitSel.value; if(v==='1') return 'm'; if(v==='3.28084') return 'ft'; return 'u'}
+function unitFactorVal(){const v=unitSel.value; return v==='custom' ? (parseFloat(unitFactor.value)||1) : parseFloat(v)||1}
+function fmtLen(v){const f=unitFactorVal(); return (v*f).toLocaleString(undefined,{maximumFractionDigits:3})}
+function fmtArea(v){const f=unitFactorVal(); return (v*f*f).toLocaleString(undefined,{maximumFractionDigits:3})}
+
+// ===================== Table (editable + drag reorder) =====================
+function renderTable(){ tblBody.innerHTML=''; pts.forEach((p,i)=>{const tr=document.createElement('tr'); tr.dataset.index=i; tr.innerHTML=`<td class="dragGrip" draggable="true">⇅</td>
+  <td><input type="checkbox" ${p.ok?'checked':''}></td>
+  <td contenteditable>${p.name}</td>
+  <td contenteditable>${p.x}</td>
+  <td contenteditable>${p.y}</td>
+  <td><button class="btn mini">✕</button></td>`;
+  const [grip,chk,tdN,tdX,tdY,del]=[...tr.children];
+  grip.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',i); e.dataTransfer.effectAllowed='move'});
+  tr.addEventListener('dragover',e=>{e.preventDefault(); const from=+e.dataTransfer.getData('text/plain'); const to=[...tblBody.children].indexOf(tr); if(from===to||from<0) return; const item=pts.splice(from,1)[0]; pts.splice(to,0,item); renderTable(); rebuild();});
+  chk.firstChild.onchange=e=>{p.ok=e.target.checked; rebuild()}
+  tdN.oninput=()=>{p.name=tdN.textContent.trim(); draw()};
+  tdX.oninput=()=>{p.x=parseFloat(tdX.textContent)||0; draw()};
+  tdY.oninput=()=>{p.y=parseFloat(tdY.textContent)||0; draw()};
+  del.firstChild.onclick=()=>{pts.splice(i,1); renderTable(); rebuild();}
+  tblBody.appendChild(tr); }); }
+
+// ===================== Sample & Import =====================
+const sample=`Name,X,Y\nP1,0,0\nP2,50,0\nP3,80,20\nP4,80,60\nP5,50,90\nP6,20,80\nP7,-10,50\nP8,-5,20`;
+function loadCSV(text){ const lines=text.trim().split(/\r?\n/).filter(Boolean); const head=lines.shift().split(',').map(s=>s.trim().toLowerCase()); const idxN=head.indexOf('name'),idxX=head.indexOf('x'),idxY=head.indexOf('y'); pts=lines.map(l=>{const c=l.split(',');return {ok:true,name:c[idxN]||('P'+(Math.random()*100|0)),x:parseFloat(c[idxX]),y:parseFloat(c[idxY])};}); renderTable(); rebuild(); log('Loaded '+pts.length+' points') }
+
+// ===================== Theme & Controls =====================
+unitSel.onchange=()=>{unitFactor.style.display=unitSel.value==='custom'?'inline-block':'none'; drawParts(); draw()}
+unitFactor.oninput=()=>{drawParts(); draw()}
+document.getElementById('theme').onclick=()=>{themeLight=!themeLight;document.body.classList.toggle('light',themeLight);document.getElementById('theme').textContent=themeLight?'☀️':'🌙'}
+
+document.getElementById('reset').onclick=()=>{pts=[];partitions=[];stack=[];handles=[{x:0,y:0,lock:false},{x:0,y:0,lock:false}];remainPoly=[];cutLine=[{x:0,y:0},{x:0,y:0}];tblBody.innerHTML='';partsBody.innerHTML='';tArea.textContent='–';tPeri.textContent='–';draw(); log('Reset tool')}
+
+// ===================== Drawing =====================
+function buildActive(){return pts.filter(p=>p.ok).map(p=>({x:+p.x,y:+p.y,name:p.name}))}
+function rebuild(){ const ap=buildActive(); remainPoly=ap.length>=3? ap : ap; // keep points to show even if <3
+  partitions=[]; stack=[]; initCut(); draw(); drawParts(); }
+function initCut(){ if(remainPoly.length<1){cutLine=[{x:0,y:0},{x:0,y:0}]; return} const bb=bbox(remainPoly); const mid={x:(bb.minx+bb.maxx)/2,y:(bb.miny+bb.maxy)/2}; const theta=+angleInput.value*Math.PI/180; const L=lineFromAngleThrough(theta,mid); const ints = boundaryIntersections(remainPoly,L[0],L[1]); if(ints.length>=2){handles[0]={...ints[0],lock:false};handles[1]={...ints[1],lock:false}} else {handles[0]={x:mid.x-30,y:mid.y}; handles[1]={x:mid.x+30,y:mid.y}} cutLine=[{x:handles[0].x,y:handles[0].y},{x:handles[1].x,y:handles[1].y}]; }
+
+function draw(){ const ap=buildActive(); const bb = ap.length?bbox(ap):{minx:-100,maxx:100,miny:-100,maxy:100}; const pad=20; const minW=svg.clientWidth||800, minH=svg.clientHeight||500; const w=bb.maxx-bb.minx||1,h=bb.maxy-bb.miny||1; const sx=(minW-2*pad)/w, sy=(minH-2*pad)/h; const s=Math.min(sx,sy); const ox=pad - bb.minx*s + (minW-2*pad - w*s)/2; const oy=pad - bb.miny*s + (minH-2*pad - h*s)/2; const X=p=>p.x*s+ox, Y=p=> (minH - (p.y*s+oy));
+  // grid
+  gridG.innerHTML=''; const stepBase=Math.pow(10,Math.floor(Math.log10(Math.max(w,h)/6))); let step=stepBase; for(const k of [1,2,5,10,20,50]){ if((Math.max(w,h)/k)<(minW/140)) {step=stepBase*k; break;}} for(let x=Math.ceil(bb.minx/step)*step;x<=bb.maxx+1e-9;x+=step){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',X({x, y:bb.miny}));l.setAttribute('y1',Y({x, y:bb.miny}));l.setAttribute('x2',X({x, y:bb.maxy}));l.setAttribute('y2',Y({x, y:bb.maxy}));gridG.appendChild(l)} for(let y=Math.ceil(bb.miny/step)*step;y<=bb.maxy+1e-9;y+=step){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',X({x:bb.minx, y}));l.setAttribute('y1',Y({x:bb.minx, y}));l.setAttribute('x2',X({x:bb.maxx, y}));l.setAttribute('y2',Y({x:bb.maxx, y}));gridG.appendChild(l)}
+  // clear layers
+  polyLayer.innerHTML=''; labels.innerHTML=''; measures.innerHTML='';
+  // draw all points (gray) + labels
+  pts.forEach(p=>{const P={x:p.x,y:p.y}; const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',X(P));c.setAttribute('cy',Y(P));c.setAttribute('r', p.ok?3:2); c.setAttribute('class', 'pt'+(p.ok?'':' inactive')); polyLayer.appendChild(c); const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',X(P)+6);t.setAttribute('y',Y(P)-6);t.setAttribute('class','label');t.textContent=`${p.name} (${p.x}, ${p.y})`; labels.appendChild(t);});
+  // active polygon (if >=3)
+  if(ap.length>=3){ const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');poly.setAttribute('points', ap.map(p=>`${X(p)},${Y(p)}`).join(' ')); poly.setAttribute('class','poly'); polyLayer.appendChild(poly); if(polygonSelfIntersect(ap)) showErr('Self‑intersecting polygon detected'); }
+  // Draw existing partitions (glowing + labels)
+  partitionsLayer.innerHTML=''; partitions.forEach((pr,i)=>{ if(pr.poly.length<3) return; const g=document.createElementNS('http://www.w3.org/2000/svg','g'); const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon'); poly.setAttribute('points', pr.poly.map(p=>`${X(p)},${Y(p)}`).join(' ')); poly.setAttribute('fill', 'transparent'); poly.setAttribute('stroke', pr.color); poly.setAttribute('stroke-width', '3'); poly.setAttribute('filter','url(#glowPart)'); g.appendChild(poly); const c=centroid(pr.poly); const big=document.createElementNS('http://www.w3.org/2000/svg','text'); big.setAttribute('x',X(c)); big.setAttribute('y',Y(c)); big.setAttribute('text-anchor','middle'); big.setAttribute('dominant-baseline','central'); big.setAttribute('fill', pr.color); big.setAttribute('font-size','28'); big.setAttribute('font-weight','800'); big.textContent=pr.name; g.appendChild(big); const meta=document.createElementNS('http://www.w3.org/2000/svg','text'); meta.setAttribute('x',X(c)); meta.setAttribute('y',Y({x:c.x,y:c.y-10})); meta.setAttribute('text-anchor','middle'); meta.setAttribute('fill', '#cbd5e1'); meta.setAttribute('font-size','12'); meta.textContent=`Area ${fmtArea(area(pr.poly))} ${unitName()}² • Peri ${fmtLen(perimeter(pr.poly))} ${unitName()}`; g.appendChild(meta); partitionsLayer.appendChild(g); });
+  // Draw remainder polygon (dashed when partitions exist)
+  if(remainPoly.length>=3){ const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon'); poly.setAttribute('points', remainPoly.map(p=>`${X(p)},${Y(p)}`).join(' ')); poly.setAttribute('class','poly '+(partitions.length?'inactive':'')); polyLayer.appendChild(poly); }
+  // Cut line + handles + measurements
+  cutLayer.innerHTML=''; if(remainPoly.length>=1 && handles[0] && handles[1]){ const A=handles[0],B=handles[1]; const L=document.createElementNS('http://www.w3.org/2000/svg','line'); L.setAttribute('x1',X(A));L.setAttribute('y1',Y(A));L.setAttribute('x2',X(B));L.setAttribute('y2',Y(B));L.setAttribute('class','cutLine'); cutLayer.appendChild(L); handles.forEach((h,idx)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('r',6);c.setAttribute('cx',X(h));c.setAttribute('cy',Y(h));c.setAttribute('class','handle'+(h.lock?' locked':'')); c.addEventListener('pointerdown', startDrag(idx)); c.addEventListener('dblclick', ()=>{h.lock=!h.lock; draw(); log((h.lock?'Locked':'Unlocked')+` handle ${idx+1}`)}); cutLayer.appendChild(c); let bestD=Infinity; remainPoly.forEach(v=>{const d=dist(h,v); if(d<bestD) bestD=d}); const m=document.createElementNS('http://www.w3.org/2000/svg','text');m.setAttribute('x',X(h)+8);m.setAttribute('y',Y(h)-8);m.setAttribute('class','label');m.textContent=`→ ${bestD.toFixed(2)}`; measures.appendChild(m); }) }
+  // Preview split (blue/yellow)
+  if(remainPoly.length>=3 && cutLine[0] && cutLine[1]){ const [L,R]=splitByLine(remainPoly,cutLine[0],cutLine[1]); const drawSide=(side,cls)=>{ if(side.length<3) return; const p=document.createElementNS('http://www.w3.org/2000/svg','polygon'); p.setAttribute('points', side.map(p=>`${X(p)},${Y(p)}`).join(' ')); p.setAttribute('class', 'poly '+cls); p.setAttribute('filter', cls==='previewBlue'?'url(#glowBlue)':'url(#glowYellow)'); polyLayer.appendChild(p); const c=centroid(side); const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',X(c)); t.setAttribute('y',Y(c)); t.setAttribute('class','label'); const a=area(side), per=perimeter(side); t.textContent=`${cls==='previewBlue'?'Blue':'Yellow'} • A ${fmtArea(a)} ${unitName()}² • P ${fmtLen(per)} ${unitName()}`; labels.appendChild(t); }; drawSide(L,'previewBlue'); drawSide(R,'previewYellow'); }
+}
+
+function startDrag(idx){ return (ev)=>{ ev.target.setPointerCapture(ev.pointerId); if(handles[idx].lock) return; const rect=svg.getBoundingClientRect(); const onMove=(e)=>{const mx=e.clientX-rect.left, my=e.clientY-rect.top; const p=toWorld(mx,my); if(remainPoly.length>=2){ let np=nearestPointOnBoundary(remainPoly,p); if(snapChk.checked && np.d*(scale())<10){const A=remainPoly[np.edge],B=remainPoly[(np.edge+1)%remainPoly.length]; np = (dist(p,A)<dist(p,B))? {...A,edge:np.edge,t:0,d:0} : {...B,edge:np.edge,t:1,d:0}; } handles[idx].x=np.x; handles[idx].y=np.y; if(!handles[1-idx].lock){ const L=lineThrough(handles[0],handles[1]); const ints=boundaryIntersections(remainPoly,L[0],L[1]); if(ints.length>=2){ const other = (dist(np,ints[0])>dist(np,ints[1]))? ints[0]:ints[1]; handles[1-idx].x=other.x; handles[1-idx].y=other.y; } } cutLine=[{x:handles[0].x,y:handles[0].y},{x:handles[1].x,y:handles[1].y}]; } else { handles[idx]={x:p.x,y:p.y}; cutLine=[{x:handles[0].x,y:handles[0].y},{x:handles[1].x,y:handles[1].y}]; } draw(); }; const onUp=()=>{ev.target.releasePointerCapture(ev.pointerId); svg.removeEventListener('pointermove',onMove); svg.removeEventListener('pointerup',onUp)}; svg.addEventListener('pointermove',onMove); svg.addEventListener('pointerup',onUp); } }
+
+function scale(){ const ap=buildActive(); const bb = ap.length?bbox(ap):{minx:-100,maxx:100,miny:-100,maxy:100}; const s=Math.min((svg.clientWidth-40)/((bb.maxx-bb.minx)||1),(svg.clientHeight-40)/((bb.maxy-bb.miny)||1)); return s }
+function toWorld(px,py){ const ap=buildActive(); const bb = ap.length?bbox(ap):{minx:-100,maxx:100,miny:-100,maxy:100}; const pad=20; const minW=svg.clientWidth||800, minH=svg.clientHeight||500; const w=bb.maxx-bb.minx||1,h=bb.maxy-bb.miny||1; const s=Math.min((minW-2*pad)/w,(minH-2*pad)/h); const ox=pad - bb.minx*s + (minW-2*pad - w*s)/2; const oy=pad - bb.miny*s + (minH-2*pad - h*s)/2; const x=(px-ox)/s; const y=(minH - py - oy)/s; return {x,y} }
+function lineThrough(A,B){ return [{x:A.x- (B.y-A.y)*99999, y:A.y+ (B.x-A.x)*99999},{x:B.x+ (B.y-A.y)*99999, y:B.y- (B.x-A.x)*99999}] }
+
+// ===================== Auto‑fit =====================
+document.getElementById('autofit').onclick=()=>{ if(remainPoly.length<3) {showErr('Need at least 3 active points to auto‑fit'); return} const th=angleOf(handles[0],handles[1]); const bb=bbox(remainPoly); const ctr={x:(bb.minx+bb.maxx)/2,y:(bb.miny+bb.maxy)/2}; const nx=-Math.sin(th), ny=Math.cos(th); const proj = remainPoly.map(p=>p.x*nx+p.y*ny); let lo=Math.min(...proj)-1, hi=Math.max(...proj)+1; const targetRaw = parseFloat(targetAreaInput.value)||0; const total=area(remainPoly); const side = sideBlue.checked ? 'blue' : 'yellow'; const want=Math.max(0, Math.min(targetRaw, total-1e-6));
+  function areaOn(d){ const A={x:ctr.x + ny*99999, y:ctr.y - nx*99999}; const B={x:ctr.x - ny*99999, y:ctr.y + nx*99999}; const shift={x:nx*(d - (ctr.x*nx+ctr.y*ny)), y:ny*(d - (ctr.x*nx+ctr.y*ny))}; const A2={x:A.x+shift.x,y:A.y+shift.y}, B2={x:B.x+shift.x,y:B.y+shift.y}; const [L,R]=splitByLine(remainPoly,A2,B2); return side==='blue'? area(L): area(R) }
+  let bestD=lo, bestErr=1e99; for(let it=0;it<50;it++){ const mid=(lo+hi)/2, a=areaOn(mid); const err=a-want; if(Math.abs(err)<bestErr){bestErr=Math.abs(err); bestD=mid} if(err>0) hi=mid; else lo=mid }
+  const A0={x:ctr.x+ny*99999,y:ctr.y-nx*99999}, B0={x:ctr.x-ny*99999,y:ctr.y+nx*99999}; const shift={x:nx*(bestD - (ctr.x*nx+ctr.y*ny)), y:ny*(bestD - (ctr.x*nx+ctr.y*ny))}; const A={x:A0.x+shift.x,y:A0.y+shift.y}, B={x:B0.x+shift.x,y:B0.y+shift.y}; const ints=boundaryIntersections(remainPoly,A,B); if(ints.length>=2){handles[0]=ints[0]; handles[1]=ints[1]; cutLine=[{x:handles[0].x,y:handles[0].y},{x:handles[1].x,y:handles[1].y}]; draw(); log(`Auto‑fit ${side.toUpperCase()} to target ${want}`)} else {showErr('Auto‑fit failed to intersect polygon')}
+}
+
+// Quick orientation buttons
+ document.getElementById('oriH').onclick=()=>{angleInput.value=0; initCut(); draw(); log('Orientation set ↔️')}
+ document.getElementById('oriV').onclick=()=>{angleInput.value=90; initCut(); draw(); log('Orientation set ↕️')}
+
+// ===================== Apply Cut & Undo =====================
+document.getElementById('newCut').onclick=()=>{ if(remainPoly.length<3){showErr('Need at least 3 active points'); return} const [L,R]=splitByLine(remainPoly,handles[0],handles[1]); if(L.length<3 || R.length<3){ showErr('Cut must cross polygon in two places'); return } const pick = sideBlue.checked? L : R; const name = nameSeq[partitions.length]; const color = pal[partitions.length%pal.length]; partitions.push({name, poly:pick, color}); stack.push(clone(remainPoly)); remainPoly = (pick===L)? R : L; drawParts(); initCut(); draw(); log(`Cut applied → Partition ${name}`) }
+
+document.getElementById('undo').onclick=()=>{ if(!partitions.length){showErr('Nothing to undo'); return} remainPoly=stack.pop(); const last=partitions.pop(); drawParts(); initCut(); draw(); log(`Undo partition ${last.name}`) }
+
+// ===================== Parts table & downloads =====================
+function drawParts(){ partsBody.innerHTML=''; let sumA=0,sumP=0; partitions.forEach((pr)=>{ const a=area(pr.poly), p=perimeter(pr.poly); sumA+=a; sumP+=p; const tr=document.createElement('tr'); tr.innerHTML=`<td>${pr.name}</td><td>${fmtArea(a)} ${unitName()}²</td><td>${fmtLen(p)} ${unitName()}</td>`; partsBody.appendChild(tr) }); if(remainPoly.length>=3){ sumA+=area(remainPoly); sumP+=perimeter(remainPoly); } tArea.textContent=`${fmtArea(sumA)} ${unitName()}²`; tPeri.textContent=`${fmtLen(sumP)} ${unitName()}` }
+
+// Combined coordinates CSV with A1.., B1.. naming
+ document.getElementById('downloadAll').onclick=()=>{ if(!partitions.length){showErr('No partitions to export'); return} const rows=[["Partition","Point","X","Y"]]; partitions.forEach(pr=> pr.poly.forEach((q,j)=> rows.push([pr.name, `${pr.name}${j+1}`, q.x, q.y])) ); download('partitions_coords.csv', rows.map(r=>r.join(',')).join('\n'),'text/csv'); log('Downloaded partitions_coords.csv') }
+ // Summary CSV (Area & Perimeter)
+ document.getElementById('downloadSummary').onclick=()=>{ const rows=[["Partition","Area("+unitName()+"^2)","Perimeter("+unitName()+")"]]; partitions.forEach(pr=> rows.push([pr.name, fmtArea(area(pr.poly)), fmtLen(perimeter(pr.poly))]) ); rows.push(["TOTAL", fmtArea(partitions.reduce((s,p)=>s+area(p.poly),0) + (remainPoly.length>=3?area(remainPoly):0)), fmtLen(partitions.reduce((s,p)=>s+perimeter(p.poly),0) + (remainPoly.length>=3?perimeter(remainPoly):0))]); download('partitions_summary.csv', rows.map(r=>r.join(',')).join('\n'),'text/csv'); log('Downloaded partitions_summary.csv') }
+
+// ===================== Angle & Help =====================
+angleInput.oninput=()=>{initCut(); draw();}
+
+// ===================== IO Buttons =====================
+document.getElementById('addRow').onclick=()=>{pts.push({ok:true,name:'P'+(pts.length+1),x:0,y:0}); renderTable(); log('Row added')}
+document.getElementById('rebuild').onclick=()=>{rebuild(); log('Rebuilt polygon')}
+document.getElementById('loadSample').onclick=()=>{loadCSV(sample)}
+document.getElementById('csvFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>loadCSV(r.result); r.readAsText(f); log('CSV imported: '+f.name) }
+document.getElementById('downloadSVG').onclick=()=>{ const s=svg.cloneNode(true); const txt=new XMLSerializer().serializeToString(s); download('sketch.svg', txt, 'image/svg+xml'); log('Downloaded SVG') }
+
+// ===================== Init =====================
+function _init(){ loadCSV(sample); document.getElementById('log').classList.add('show'); }
+_init();
+</script>
+</body>
+</html>

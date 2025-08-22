@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CSV → Polygon Area Tool</title>
+<style>
+  :root{
+    /* LIGHT DEFAULT */
+    --bg:#f3f6fb; --fg:#0c1222; --muted:#5b6a85; --card:#ffffff; --accent:#355bff; --accent2:#ffd75a; --good:#0a9b5b; --bad:#ff4d4d;
+    --chip:#e9eefb; --grid:#e5ebf9; --line:#2747d8; --fill:#4a6aff22; --pt:#f0b400; --ptAll:#9aa7c1; --shadow: 0 10px 24px rgba(0,0,0,.08);
+    --outbox:#1f2330; --glow: 0 0 16px rgba(255,230,120,.45);
+    --rowZebra:#f2f4fb;
+    --accentTrack:#cfe0ff; --accentThumb:#2a54ff;
+  }
+  [data-theme="dark"]{
+    --bg:#0e1320; --fg:#e8eefc; --muted:#9aa7c1; --card:#121a2c; --accent:#9db3ff; --accent2:#ffe47a; --good:#8cffb0; --bad:#ff6b6b;
+    --chip:#1c2742; --grid:#17223a; --line:#8fb3ff; --fill:#7aa2ff33; --pt:#ffe47a; --ptAll:#6f85b3; --shadow: 0 8px 24px rgba(0,0,0,.35);
+    --outbox:#0f1420; --glow: 0 0 18px rgba(255,230,120,.55);
+    --rowZebra:#111b2f;
+    --accentTrack:#0f1a33; --accentThumb:#9db3ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--fg); font:500 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial}
+
+  /* LAYOUT: drawing on top, panel below */
+  .app{display:flex; flex-direction:column; gap:14px; padding:14px; max-width:1300px; margin:0 auto}
+
+  .panel{background:var(--card); border-radius:16px; box-shadow:var(--shadow); padding:14px}
+  h1{margin:0 0 10px; font:800 18px/1.2 ui-rounded, "SF Pro Rounded", Poppins, system-ui; letter-spacing:.2px}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:12px; margin:10px 0 6px; align-items:center}
+  .btn{border:0; border-radius:12px; padding:8px 10px; background:#e9eefb; color:#142041; cursor:pointer; font-weight:800; box-shadow:var(--shadow)}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:transparent; border:1px solid #c9d4f1}
+  .btn.accent{background:linear-gradient(180deg, #2a54ff, #2045ce); color:#fff}
+  .iconbtn{width:38px; height:38px; border-radius:999px; border:0; display:grid; place-items:center; box-shadow:var(--shadow); background:var(--card); cursor:pointer}
+
+  input[type="file"]{display:none}
+  .filelabel{border:1px dashed #bbc8ee; background:#f7f9ff; color:#24325b; padding:8px 10px; border-radius:10px; cursor:pointer; font-weight:800}
+
+  select, .mini{appearance:none; border:1px solid #c9d4f1; background:#f7f9ff; color:#142041; padding:8px 10px; border-radius:10px; font-weight:700}
+  [data-theme="dark"] select, [data-theme="dark"] .mini{border-color:#2a3a6b; background:#0f1628; color:#e8eefc}
+
+  .mapCard{position:relative; min-height:52vh; height:62vh; background:linear-gradient(180deg,#f6f9ff,#eef3ff); border-radius:16px; box-shadow:var(--shadow); overflow:hidden}
+  [data-theme="dark"] .mapCard{background: radial-gradient(1200px 500px at 10% 10%, #16213f 0%, #0f1628 55%, #0d1324 100%)}
+  .sketchActions{position:absolute; top:10px; right:10px; display:flex; flex-wrap:wrap; gap:8px; z-index:3; align-items:center}
+
+  /* sliders */
+  .sliderWrap{display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid #c9d4f1; padding:6px 8px; border-radius:12px; box-shadow:var(--shadow)}
+  [data-theme="dark"] .sliderWrap{border-color:#2a3a6b}
+  .range{appearance:none; width:140px; height:6px; border-radius:999px; background:var(--accentTrack); outline:none}
+  .range::-webkit-slider-thumb{appearance:none; width:18px; height:18px; border-radius:50%; background:var(--accentThumb); cursor:pointer; border:2px solid #ffffff55}
+  .range::-moz-range-thumb{width:18px; height:18px; border-radius:50%; background:var(--accentThumb); cursor:pointer; border:2px solid #ffffff55}
+  .chipTiny{font:800 11px/1 ui-sans-serif; color:var(--muted)}
+
+  svg{width:100%; height:100%}
+  .grid line{stroke:var(--grid); stroke-width:1}
+
+  /* Poly/Point visuals. Widths set via JS (non-scaling) */
+  .polyseg{stroke:var(--line); stroke-linecap:round; filter:url(#glow);} 
+  .polyseg.flow{ stroke-dasharray: 12 12; animation: flow 1.4s linear infinite; }
+  @keyframes flow{ to{ stroke-dashoffset: -60; } }
+  .polyfill{fill:var(--fill); filter:url(#softglow)}
+  .pt{ fill:var(--pt); stroke:#ffd76a; filter:url(#ptglow)}
+  .ptHalo{ fill:#ffe47a44; filter:url(#softglow); animation:pulse 1.8s ease-in-out infinite }
+  .ptAll{ fill:var(--ptAll); opacity:.85 }
+  @keyframes pulse{ 0%{opacity:.45} 50%{opacity:.9} 100%{opacity:.45} }
+
+  .overlay{position:absolute; inset:0; pointer-events:none}
+  .chip{position:absolute; background:var(--chip); color:var(--fg); border:1px solid #2b3c6e33; border-radius:999px; padding:4px 8px; font:700 clamp(10px,1.2vw,13px)/1 ui-monospace; opacity:.5; pointer-events:none; white-space:nowrap; transform:translate(-50%, -120%)}
+  .chip.solid{opacity:1}
+
+  .areaHUD{position:absolute; right:10px; bottom:10px; background:#1a2030ee; color:#fff; border:1px solid rgba(255,230,120,.7); border-radius:12px; padding:14px 18px; font:900 clamp(18px,2.6vw,24px)/1.1 "Roboto Mono", ui-monospace; z-index:3; box-shadow: var(--glow)}
+  .hintHUD{position:absolute; left:10px; top:10px; background:var(--chip); color:var(--fg); border:1px solid #2b3c6e33; border-radius:10px; padding:6px 10px; font:800 13px/1 ui-sans-serif; z-index:3}
+  .hintHUD.bad{color:var(--bad)}
+  .noteHUD{position:absolute; left:10px; bottom:10px; background:#1a2030ee; color:#fff; border:1px solid rgba(255,230,120,.5); border-radius:10px; padding:6px 10px; font:700 12px/1.2 ui-monospace; z-index:3; box-shadow: var(--glow)}
+
+  /* Area bar */
+  .outbox{margin:10px 0; background:var(--outbox); color:#fff; border:1px solid rgba(255,230,120,.35); border-radius:12px; padding:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; position:sticky; top:0; z-index:5; box-shadow: var(--glow)}
+  .area{font:900 22px/1.1 "Roboto Mono", ui-monospace, Menlo, Consolas}
+  .status{color:#e9f0ff; margin-left:auto}
+  .status.bad{color:var(--bad); font-weight:800}
+
+  /* Toggle switch for coord mode */
+  .switch{display:flex; align-items:center; gap:8px; margin-left:auto; min-width:180px; margin-top:6px}
+  .switch input{display:none}
+  .toggle{position:relative; width:172px; height:34px; border-radius:999px; background:#dfe7ff; border:1px solid #c9d4f1; box-shadow:var(--shadow); cursor:pointer; display:flex; align-items:center;}
+  .knob{position:absolute; top:2px; left:2px; width:82px; height:30px; background:#2a54ff; border-radius:999px; transition:left .25s ease; color:#fff; display:grid; place-items:center; font:800 12px/1 ui-sans-serif}
+  .labels{display:flex; width:100%; justify-content:space-between; padding:0 10px; font:800 12px/1 ui-sans-serif; color:#142041}
+  [data-theme="dark"] .toggle{background:#0f1a33; border-color:#2a3a6b}
+  [data-theme="dark"] .labels{color:#e8eefc}
+
+  /* table */
+  .tableWrap{max-height:440px; overflow:auto; border-radius:12px}
+  table{width:100%; border-collapse:separate; border-spacing:0 8px}
+  thead th{color:var(--muted); font-weight:800; text-align:left; padding:8px 6px; position:sticky; top:0; background:var(--card); z-index:2}
+  tbody td{padding:10px 6px; vertical-align:middle}
+  tbody tr:nth-child(odd){ background:var(--rowZebra) }
+  .grip{width:26px; text-align:center; cursor:grab; user-select:none; color:#9aa7c1}
+  .row.dragging{opacity:.5}
+  .drop-above{outline:2px dashed #9bb0ff; outline-offset:-6px}
+
+  /* Blink highlight for X/Y mapping */
+  @keyframes blinkRed{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,77,77,0); border-color:#c9d4f1 } 50%{ box-shadow:0 0 0 6px rgba(255,77,77,.2); border-color:#ff4d4d } }
+  .blink-map{ animation: blinkRed 0.6s ease-in-out 5; }
+
+  .credits{position:fixed; right:12px; bottom:10px; color:#8aa2d6; font-size:12px; user-select:none}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <section class="mapCard" id="sketch">
+    <div class="sketchActions">
+      <div class="sliderWrap" title="Zoom">
+        <span>🔎</span>
+        <input id="zoomSlider" type="range" class="range" min="0.2" max="5" step="0.01" value="1" />
+        <span id="zoomVal" class="chipTiny">100%</span>
+      </div>
+      <div class="sliderWrap" title="Style size (points & lines)">
+        <span>🎚️</span>
+        <input id="styleSlider" type="range" class="range" min="0.3" max="2" step="0.01" value="1" />
+        <span id="styleVal" class="chipTiny">1.00×</span>
+      </div>
+      <button id="fitView" class="iconbtn" title="Zoom to Fit">🔍</button>
+      <button id="modeBtn" class="iconbtn" title="Theme">🌞</button>
+    </div>
+    <svg id="svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.2" result="b"/>
+          <feMerge>
+            <feMergeNode in="b"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6"/>
+        </filter>
+        <filter id="ptglow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.4" result="s"/>
+          <feMerge>
+            <feMergeNode in="s"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <g id="grid" class="grid"></g>
+      <g id="scene">
+        <polygon id="polyfill" class="polyfill" points="" visibility="hidden"></polygon>
+        <g id="segments"></g>
+        <g id="allPoints"></g>
+        <g id="points"></g>
+      </g>
+    </svg>
+    <div id="overlay" class="overlay"></div>
+    <div id="areaHUD" class="areaHUD">Area: —</div>
+    <div id="hintHUD" class="hintHUD">Import CSV and select points</div>
+    <div id="noteHUD" class="noteHUD">Using planar shoelace (XY) + Euclidean segments</div>
+  </section>
+
+  <section class="panel">
+    <h1>CSV → Polygon Area</h1>
+
+    <div class="outbox">
+      <div class="area">Area: <span id="areaVal">0</span> <span id="areaUnits" style="font-weight:700;">sq units</span></div>
+      <div class="switch">
+        <div class="toggle" id="coordToggle" title="Toggle UTM/Local ↔ Lat–Long (GCS)">
+          <div class="knob" id="coordKnob">UTM</div>
+          <div class="labels"><span>UTM / Local</span><span>Lat–Long</span></div>
+        </div>
+      </div>
+      <div id="status" class="status">Import CSV, map X/Y, then select points (≥ 3 enabled)</div>
+    </div>
+
+    <div class="toolbar">
+      <label class="filelabel" for="csvFile">📄 Import CSV</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv" />
+
+      <span class="mini">X:
+        <select id="selX" class="mini"></select>
+      </span>
+      <span class="mini">Y:
+        <select id="selY" class="mini"></select>
+      </span>
+      <span class="mini">Name:
+        <select id="selName" class="mini"></select>
+      </span>
+      <span class="mini">Z:
+        <select id="selZ" class="mini"></select>
+      </span>
+      <button id="clearAll" class="btn ghost">Clear Table</button>
+    </div>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px"><input type="checkbox" id="toggleAll" /></th>
+            <th style="width:34px">↕</th>
+            <th style="width:60px">S/N</th>
+            <th style="width:140px">Name</th>
+            <th style="width:110px">X</th>
+            <th style="width:110px">Y</th>
+            <th style="width:110px">Z</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<div class="credits">© Vijay Parmar</div>
+
+<script>
+(function(){
+  // ===== THEME (default light) =====
+  const modeBtn = document.getElementById('modeBtn');
+  function setTheme(t){ document.documentElement.setAttribute('data-theme', t); modeBtn.textContent = (t==='dark'?'🌙':'🌞'); localStorage.setItem('csvpoly.theme', t); }
+  setTheme(localStorage.getItem('csvpoly.theme') || 'light');
+  modeBtn.addEventListener('click',()=> setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
+
+  // ===== DOM refs =====
+  const csvInput = document.getElementById('csvFile');
+  const selX = document.getElementById('selX');
+  const selY = document.getElementById('selY');
+  const selName = document.getElementById('selName');
+  const selZ = document.getElementById('selZ');
+  const toggleAll = document.getElementById('toggleAll');
+  const clearBtn = document.getElementById('clearAll');
+  const areaUnitsEl = document.getElementById('areaUnits');
+
+  const tbody = document.getElementById('tbody');
+  const areaVal = document.getElementById('areaVal');
+  const statusEl = document.getElementById('status');
+
+  const svg = document.getElementById('svg');
+  const gridG = document.getElementById('grid');
+  const scene = document.getElementById('scene');
+  const segG = document.getElementById('segments');
+  const allPtsG = document.getElementById('allPoints');
+  const ptsG = document.getElementById('points');
+  const polyfill = document.getElementById('polyfill');
+  const overlay = document.getElementById('overlay');
+  const fitBtn = document.getElementById('fitView');
+  const areaHUD = document.getElementById('areaHUD');
+  const hintHUD = document.getElementById('hintHUD');
+  const noteHUD = document.getElementById('noteHUD');
+  const coordToggle = document.getElementById('coordToggle');
+  const coordKnob = document.getElementById('coordKnob');
+  const zoomSlider = document.getElementById('zoomSlider');
+  const zoomVal = document.getElementById('zoomVal');
+  const styleSlider = document.getElementById('styleSlider');
+  const styleVal = document.getElementById('styleVal');
+
+  // ===== Data =====
+  let rawRows = []; // array of objects by header
+  let headers = [];
+  let mapped = {x:null, y:null, name:null, z:null};
+  let rows = []; // table model: {id, sn, name, x, y, z, selected}
+  let coordMode = 'local'; // 'local' | 'geo'
+
+  // Visual base sizes (already reduced massively)
+  // Active: 5× smaller vs prior; Gray: 10× smaller vs active handled in adjustVisualScale
+  const pxBase = { seg: 1.12, pt: 0.94, halo: 2.4 };
+  let vizScale = 1.0; // user style zoom for point/line thickness
+
+  // ===== Grid =====
+  addGrid();
+  function addGrid(){
+    gridG.innerHTML='';
+    const step=10; const w=100, h=100;
+    for(let x=0;x<=w;x+=step){ const l=line(x,0,x,h); l.setAttribute('opacity', x%50===0? .25:.12); gridG.appendChild(l); }
+    for(let y=0;y<=h;y+=step){ const l=line(0,y,100,y); l.setAttribute('opacity', y%50===0? .25:.12); gridG.appendChild(l); }
+  }
+  function line(x1,y1,x2,y2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); return l; }
+  function circle(cx,cy,r,cls){ const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r); if(cls) c.setAttribute('class',cls); return c; }
+
+  // ===== CSV Parsing =====
+  csvInput.addEventListener('change', async (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const text = await f.text();
+    const parsed = parseCSV(text);
+    headers = parsed.headers; rawRows = parsed.rows;
+    populateMappingSelects(headers);
+    buildTableFromRaw();
+    statusEl.textContent = 'Choose X & Y columns, then select points to draw.';
+    // blink X/Y for up to 3s to draw attention
+    selX.classList.add('blink-map'); selY.classList.add('blink-map');
+    setTimeout(()=>{ selX.classList.remove('blink-map'); selY.classList.remove('blink-map'); }, 3000);
+  });
+
+  function parseCSV(txt){
+    // Minimal robust CSV parser
+    const rows=[]; let cur=[]; let val=''; let inQ=false; let i=0;
+    function push(){ cur.push(val); val=''; }
+    function endRow(){ rows.push(cur); cur=[]; }
+    for(; i<txt.length; i++){
+      const ch = txt[i];
+      if(inQ){
+        if(ch==='"'){
+          if(txt[i+1]==='"'){ val+='"'; i++; } else { inQ=false; }
+        } else { val+=ch; }
+      } else {
+        if(ch==='"'){ inQ=true; }
+        else if(ch===','){ push(); }
+        else if(ch==='\n'){ push(); endRow(); }
+        else if(ch==='\r'){ /* ignore */ }
+        else { val+=ch; }
+      }
+    }
+    push(); if(cur.length) endRow();
+    const headers = rows.shift() || [];
+    const objs = rows.filter(r=>r.length>0 && r.some(c=>c!=='')).map(r=>{
+      const o={}; headers.forEach((h,idx)=> o[h?.trim()||`col${idx}`] = r[idx]?.trim?.() ?? ''); return o; });
+    return {headers, rows:objs};
+  }
+
+  function populateMappingSelects(hdrs){
+    [selX, selY, selName, selZ].forEach(sel=>{ sel.innerHTML=''; hdrs.forEach(h=>{ const o=document.createElement('option'); o.value=h; o.textContent=h; sel.appendChild(o); });
+      const none=document.createElement('option'); none.value=''; none.textContent='(none)'; if(sel!==selX && sel!==selY) sel.appendChild(none);
+    });
+    // basic auto-detect
+    const findName=(names)=> hdrs.find(h=> names.includes(h.toLowerCase()));
+    const lower = hdrs.map(h=>h.toLowerCase());
+    selX.value = hdrs[ lower.indexOf('x') > -1 ? lower.indexOf('x') : 0 ] || hdrs[0];
+    selY.value = hdrs[ lower.indexOf('y') > -1 ? lower.indexOf('y') : 1 ] || hdrs[0];
+    selName.value = findName(['name','label','point','pt','id']) || '';
+    selZ.value = findName(['z','elev','elevation','rl']) || '';
+    mapped = {x: selX.value, y: selY.value, name: selName.value||null, z: selZ.value||null};
+  }
+
+  // Instant redraw on dropdown change
+  [selX,selY,selName,selZ].forEach(sel=> sel.addEventListener('change', ()=>{ mapped={x:selX.value, y:selY.value, name:selName.value||null, z:selZ.value||null}; buildTableFromRaw(); needFit=true; }));
+
+  // Toggle between local and geo modes
+  coordToggle.addEventListener('click', ()=>{
+    const isGeo = coordMode==='local';
+    coordMode = isGeo ? 'geo' : 'local';
+    coordKnob.textContent = isGeo ? 'GCS' : 'UTM';
+    coordKnob.style.left = isGeo ? '88px' : '2px';
+    updateUnitsAndNote(); draw();
+  });
+
+  function updateUnitsAndNote(){
+    if(coordMode==='geo'){ areaUnitsEl.textContent='sq meters'; noteHUD.textContent='Using haversine segments + spherical excess area (R=6,371,000 m)'; }
+    else { areaUnitsEl.textContent='sq units'; noteHUD.textContent='Using planar shoelace (XY) + Euclidean segments'; }
+  }
+  updateUnitsAndNote();
+
+  function buildTableFromRaw(){
+    rows = rawRows.map((r,idx)=>({
+      id: idx+1,
+      sn: idx+1,
+      name: (mapped.name? r[mapped.name] : `P${idx+1}`) || `P${idx+1}`,
+      x: num(r[mapped.x]),
+      y: num(r[mapped.y]),
+      z: mapped.z? r[mapped.z] : '',
+      selected: false
+    })).filter(o=> isFinite(o.x) && isFinite(o.y));
+    renderTable();
+    needFit = true; // fit once after data changes
+    draw();
+  }
+
+  function num(v){ const n= parseFloat(String(v).replace(/,/g,'')); return isNaN(n)? NaN : n; }
+
+  function renderTable(){
+    tbody.innerHTML='';
+    rows.forEach((r,i)=>{
+      const tr=document.createElement('tr'); tr.dataset.idx=i; tr.className='row';
+      tr.innerHTML = `
+        <td><input type=\"checkbox\" class=\"rowSel\" ${r.selected? 'checked':''}></td>
+        <td class=\"grip\" title=\"Drag to reorder\">⋮⋮</td>
+        <td>${r.sn}</td>
+        <td>${escapeHTML(r.name)}</td>
+        <td>${fmt(r.x)}</td>
+        <td>${fmt(r.y)}</td>
+        <td>${escapeHTML(r.z||'')}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    // selection events
+    tbody.querySelectorAll('.rowSel').forEach((cb,i)=> cb.addEventListener('change', (e)=>{ rows[i].selected = e.target.checked; needFit = false; draw(); syncHeaderToggle(); }));
+
+    // drag & drop reorder using grip only
+    let dragIndex=null; let draggingEl=null;
+    tbody.querySelectorAll('.row').forEach((tr)=>{
+      const grip = tr.querySelector('.grip');
+      grip.addEventListener('mousedown', ()=>{ tr.setAttribute('draggable','true'); });
+      grip.addEventListener('mouseup', ()=>{ tr.removeAttribute('draggable'); });
+      grip.addEventListener('touchstart', ()=>{ tr.setAttribute('draggable','true'); }, {passive:true});
+
+      tr.addEventListener('dragstart', (e)=>{
+        if(e.target!==tr) return; dragIndex = +tr.dataset.idx; draggingEl=tr; tr.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+      tr.addEventListener('dragend', ()=>{ draggingEl?.classList.remove('dragging'); draggingEl?.removeAttribute('draggable'); dragIndex=null; draggingEl=null; [...tbody.querySelectorAll('.row')].forEach(r=> r.classList.remove('drop-above')); });
+    });
+
+    tbody.addEventListener('dragover', (e)=>{
+      e.preventDefault(); const after = getRowAfter(tbody, e.clientY);
+      [...tbody.querySelectorAll('.row')].forEach(r=> r.classList.remove('drop-above'));
+      if(after){ after.classList.add('drop-above'); }
+    });
+
+    tbody.addEventListener('drop', (e)=>{
+      e.preventDefault(); const after = getRowAfter(tbody, e.clientY);
+      const from = dragIndex; if(from==null) return;
+      let to = rows.length-1;
+      if(after){ to = +after.dataset.idx; }
+      if(to===from) return;
+      const item = rows.splice(from,1)[0]; rows.splice(to,0,item);
+      renderTable(); needFit=false; draw();
+    });
+
+    toggleAll.checked = rows.length>0 && rows.every(r=>r.selected);
+  }
+
+  function getRowAfter(container, y){
+    const els=[...container.querySelectorAll('.row')];
+    let closest={offset:Number.NEGATIVE_INFINITY, el:null};
+    els.forEach(el=>{
+      const box=el.getBoundingClientRect(); const offset = y - box.top - box.height/2;
+      if(offset<0 && offset>closest.offset){ closest={offset, el}; }
+    });
+    return closest.el;
+  }
+
+  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, (c)=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+  function syncHeaderToggle(){ toggleAll.checked = rows.length>0 && rows.every(r=>r.selected); }
+  toggleAll.addEventListener('change', ()=>{ rows.forEach(r=> r.selected = toggleAll.checked); renderTable(); needFit=false; draw(); });
+  clearBtn.addEventListener('click', ()=>{ rows=[]; rawRows=[]; headers=[]; renderTable(); needFit=true; draw(); statusEl.textContent='Cleared. Import a CSV to start.'; });
+
+  // ===== Sketch & Area =====
+  // Transform state
+  let scale=1, tx=0, ty=0, needFit=true;
+  function setTransform(){ scene.setAttribute('transform', `translate(${tx} ${ty}) scale(${scale})`); adjustVisualScale(); updateAllChips(); updateZoomUI(); }
+
+  function enabledPoints(){ return rows.filter(r=>r.selected).map(({name,x,y})=>({name,x,y})); }
+
+  function fitToPoints(){
+    const sel = enabledPoints();
+    const pts = sel.length? sel : rows.filter(o=>isFinite(o.x)&&isFinite(o.y));
+    if(pts.length===0){ scale=1; tx=0; ty=0; setTransform(); return; }
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const p of pts){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+    const pad= (Math.max(maxX-minX, maxY-minY)||10) * 0.15;
+    minX-=pad; maxX+=pad; minY-=pad; maxY+=pad;
+    const vb = svg.viewBox.baseVal; // 0..100
+    const sx = vb.width/(maxX-minX); const sy = vb.height/(maxY-minY);
+    scale = Math.min(sx, sy);
+    tx = -minX*scale + (vb.width - (maxX-minX)*scale)/2;
+    ty = -minY*scale + (vb.height - (maxY-minY)*scale)/2;
+    setTransform();
+  }
+  document.getElementById('fitView').addEventListener('click', ()=>{ needFit=true; draw(); });
+
+  function setScaleAround(newScale, screenX, screenY){
+    const ctm = scene.getScreenCTM(); if(!ctm) return;
+    const m=svg.createSVGPoint(); m.x=screenX; m.y=screenY; const p=m.matrixTransform(ctm.inverse());
+    newScale = clamp(newScale, 0.2, 5);
+    const k = newScale/scale;
+    tx = (tx - p.x*scale) * k + p.x*scale;
+    ty = (ty - p.y*scale) * k + p.y*scale;
+    scale = newScale;
+    setTransform();
+  }
+
+  function draw(){
+    const pts = enabledPoints();
+    allPtsG.innerHTML=''; ptsG.innerHTML=''; segG.innerHTML=''; polyfill.setAttribute('visibility','hidden'); overlay.innerHTML='';
+
+    // draw ALL points in gray (even if not selected) – 10× smaller
+    rows.forEach((p)=>{
+      if(!isFinite(p.x)||!isFinite(p.y)) return;
+      const g=circle(p.x,p.y, (pxBase.pt*0.1*vizScale)/scale, 'ptAll'); allPtsG.appendChild(g);
+    });
+
+    // draw selected points + chips (start even with one) – active 5× smaller base
+    pts.forEach((p,idx)=>{
+      const halo=circle(p.x,p.y, (pxBase.halo*vizScale)/scale, 'ptHalo'); ptsG.appendChild(halo);
+      const c=circle(p.x,p.y, (pxBase.pt*vizScale)/scale, 'pt'); c.dataset.key=`pt-${idx}`; c.style.cursor='pointer';
+      c.addEventListener('pointerenter', ()=> setChipSolid(`pt-${idx}`, true));
+      c.addEventListener('pointerleave', ()=> setChipSolid(`pt-${idx}`, false));
+      c.addEventListener('click', ()=> togglePin(`pt-${idx}`));
+      ptsG.appendChild(c);
+
+      const chip = makeChip(`${p.name||''} (${fmt(p.x)}, ${fmt(p.y)})`); chip.dataset.key=`pt-${idx}`; overlay.appendChild(chip);
+    });
+
+    // segs + chips: for 2 points draw 1 open segment; for ≥3 close ring
+    if(pts.length>=2){
+      const segCount = (pts.length>=3)? pts.length : pts.length-1;
+      for(let i=0;i<segCount;i++){
+        const a=pts[i], b=pts[(i+1)%pts.length];
+        const s=line(a.x,a.y,b.x,b.y); s.setAttribute('class','polyseg flow'); s.dataset.key=`seg-${i}`; s.style.cursor='pointer';
+        s.addEventListener('pointerenter',()=> setChipSolid(`seg-${i}`, true));
+        s.addEventListener('pointerleave',()=> setChipSolid(`seg-${i}`, false));
+        s.addEventListener('click',()=> togglePin(`seg-${i}`));
+        s.setAttribute('stroke-width', (pxBase.seg*vizScale)/scale);
+        segG.appendChild(s);
+
+        const midx=(a.x+b.x)/2, midy=(a.y+b.y)/2; const len = (coordMode==='geo'? haversine(a,b): Math.hypot(b.x-a.x,b.y-a.y));
+        const chip = makeChip(`L${i+1}: ${fmt(len)}${coordMode==='geo'?' m':''}`); chip.dataset.key=`seg-${i}`; overlay.appendChild(chip);
+      }
+    }
+
+    // hints & area
+    hintHUD.classList.remove('bad');
+    if(pts.length<3){
+      hintHUD.textContent='Select minimum 3 points to get area';
+      hintHUD.classList.add('bad');
+      areaVal.textContent='0';
+      areaHUD.textContent='Area: —';
+      statusEl.textContent = (pts.length? `Enabled: ${pts.length} (need ≥ 3)` : 'Select ≥ 3 points to compute area');
+      statusEl.classList.remove('bad');
+    } else {
+      if(selfIntersects(pts)){
+        polyfill.setAttribute('visibility','hidden');
+        hintHUD.textContent='Self-intersection detected. Adjust or deselect points.'; hintHUD.classList.add('bad');
+        statusEl.textContent='Self-intersection detected. Adjust or deselect points.'; statusEl.classList.add('bad');
+        areaVal.textContent='—'; areaHUD.textContent='Area: —';
+      } else {
+        const ptsStr = pts.map(p=>`${p.x},${p.y}`).join(' ');
+        polyfill.setAttribute('points', ptsStr);
+        polyfill.setAttribute('visibility','visible');
+        const a = (coordMode==='geo'? areaSpherical(pts): areaShoelace(pts));
+        const txt = fmt(a);
+        areaVal.textContent = txt;
+        areaHUD.textContent = `Area: ${txt} ${coordMode==='geo'?'m²':'sq units'}`;
+        statusEl.textContent = `Enabled: ${pts.length}`; statusEl.classList.remove('bad');
+        hintHUD.textContent=''; hintHUD.classList.remove('bad');
+      }
+    }
+
+    if(needFit){ fitToPoints(); needFit=false; } else { adjustVisualScale(); updateAllChips(); }
+  }
+
+  function fmt(n){ if(!isFinite(n)) return '—'; const r=Math.round(n*1000)/1000; return (r%1===0)? r.toString(): r.toString(); }
+
+  // intersection check
+  function intersect(p1,p2,p3,p4){
+    const d=(p2.x-p1.x)*(p4.y-p3.y)-(p2.y-p1.y)*(p4.x-p3.x); if(d===0) return false;
+    const ua=((p3.x-p1.x)*(p4.y-p3.y)-(p3.y-p1.y)*(p4.x-p3.x))/d;
+    const ub=((p3.x-p1.x)*(p2.y-p1.y)-(p3.y-p1.y)*(p2.x-p1.x))/d;
+    return ua>0&&ua<1&&ub>0&&ub<1;
+  }
+  function selfIntersects(pts){
+    const n=pts.length; if(n<4) return false;
+    for(let i=0;i<n;i++){
+      const a1=pts[i], a2=pts[(i+1)%n];
+      for(let j=i+1;j<n;j++){
+        if(Math.abs(i-j)<=1 || (i===0 && j===n-1)) continue;
+        const b1=pts[j], b2=pts[(j+1)%n]; if(intersect(a1,a2,b1,b2)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Area (planar)
+  function areaShoelace(pts){ let s=0; for(let i=0;i<pts.length;i++){ const j=(i+1)%pts.length; s += pts[i].x*pts[j].y - pts[j].x*pts[i].y; } return Math.abs(s)/2; }
+
+  // Distance (geo) and Area (spherical)
+  const R=6371000; // meters
+  function toRad(d){ return d*Math.PI/180; }
+  function haversine(a,b){
+    const φ1=toRad(a.y), φ2=toRad(b.y), Δφ=toRad(b.y-a.y), Δλ=toRad(b.x-a.x);
+    const s = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+    const c = 2*Math.asin(Math.min(1, Math.sqrt(s)));
+    return R*c;
+  }
+  function centralAngle(a,b){ // radians between two lat-lon points
+    const φ1=toRad(a.y), φ2=toRad(b.y), Δφ=φ2-φ1, Δλ=toRad(b.x-a.x);
+    const h = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+    return 2*Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function areaSpherical(pts){
+    // Fan triangulation from vertex 0; sum spherical excess via l'Huilier
+    let excess=0;
+    for(let i=1;i<pts.length-1;i++){
+      const A=pts[0], B=pts[i], C=pts[i+1];
+      const a = centralAngle(B,C);
+      const b = centralAngle(A,C);
+      const c = centralAngle(A,B);
+      const s = (a+b+c)/2;
+      const t = Math.tan(s/2)*Math.tan((s-a)/2)*Math.tan((s-b)/2)*Math.tan((s-c)/2);
+      const E = 4*Math.atan(Math.sqrt(Math.max(0,t)));
+      excess += E;
+    }
+    return Math.abs(excess)*R*R; // m^2
+  }
+
+  // Chips overlay helpers
+  const pinned = new Set();
+  function svgToOverlayPos(x,y){
+    const pt = svg.createSVGPoint(); pt.x=x; pt.y=y; const ctm = scene.getScreenCTM(); if(!ctm) return {x:0,y:0};
+    const screen = pt.matrixTransform(ctm);
+    const r = overlay.getBoundingClientRect();
+    return {x: screen.x - r.left, y: screen.y - r.top};
+  }
+  function makeChip(text){ const el=document.createElement('div'); el.className='chip'; el.textContent=text; return el; }
+  function setChipSolid(key, on){ const el=overlay.querySelector(`.chip[data-key="${key}"]`); if(!el) return; if(on||pinned.has(key)) el.classList.add('solid'); else el.classList.remove('solid'); }
+  function togglePin(key){ if(pinned.has(key)) pinned.delete(key); else pinned.add(key); setChipSolid(key, true); }
+  function updateAllChips(){
+    overlay.querySelectorAll('.chip').forEach(ch=>{
+      const key=ch.dataset.key; if(!key) return; const parts=key.split('-'); const type=parts[0]; const idx=+parts[1];
+      const pts = enabledPoints(); if(type==='pt' && pts[idx]){ const p=svgToOverlayPos(pts[idx].x, pts[idx].y); ch.style.left=p.x+'px'; ch.style.top=p.y+'px'; }
+      if(type==='seg' && pts.length>=2){ const segCount=(pts.length>=3)? pts.length: pts.length-1; if(idx<segCount){ const a=pts[idx], b=pts[(idx+1)%pts.length]; const m=svgToOverlayPos((a.x+b.x)/2,(a.y+b.y)/2); ch.style.left=m.x+'px'; ch.style.top=m.y+'px'; } }
+    });
+  }
+  window.addEventListener('resize', updateAllChips);
+
+  function updateZoomUI(){ zoomSlider.value = scale.toFixed(2); zoomVal.textContent = Math.round(scale*100)+"%"; styleVal.textContent = vizScale.toFixed(2)+"×"; }
+
+  // Keep visual thickness constant regardless of zoom (approx) by scaling in view units
+  function adjustVisualScale(){
+    // segments
+    segG.querySelectorAll('.polyseg').forEach(s=> s.setAttribute('stroke-width', ((pxBase.seg*vizScale)/scale)));
+    // points
+    ptsG.querySelectorAll('.pt').forEach(c=> c.setAttribute('r', ((pxBase.pt*vizScale)/scale)));
+    ptsG.querySelectorAll('.ptHalo').forEach(c=> c.setAttribute('r', ((pxBase.halo*vizScale)/scale)));
+    // gray all-points size (10× smaller than active)
+    allPtsG.querySelectorAll('circle').forEach(c=> c.setAttribute('r', ((pxBase.pt*0.1*vizScale)/scale)));
+  }
+
+  // Pan & Zoom (wheel 10% steps, clamped)
+  let dragging=false, lx=0, ly=0; 
+  svg.addEventListener('pointerdown', (e)=>{ dragging=true; lx=e.clientX; ly=e.clientY; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointerup', (e)=>{ dragging=false; svg.releasePointerCapture(e.pointerId); });
+  svg.addEventListener('pointerleave', ()=> dragging=false);
+  svg.addEventListener('pointermove', (e)=>{ if(!dragging) return; const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY; tx+=dx; ty+=dy; setTransform(); });
+  svg.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const factor=(e.deltaY<0)?1.10:0.90; // 10% steps
+    setScaleAround(scale*factor, e.clientX, e.clientY);
+  }, {passive:false});
+
+  // Zoom slider controls scale around view center
+  zoomSlider.addEventListener('input', (e)=>{
+    const rect = svg.getBoundingClientRect();
+    setScaleAround(parseFloat(e.target.value), rect.left + rect.width/2, rect.top + rect.height/2);
+  });
+
+  // Style slider controls vizScale
+  styleSlider.addEventListener('input', (e)=>{ vizScale = parseFloat(e.target.value); adjustVisualScale(); updateZoomUI(); });
+
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+})();
+</script>
+</body>
+</html>
