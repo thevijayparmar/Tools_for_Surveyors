@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Glowing Polygon Area Tool</title>
+<style>
+  :root{
+    --bg:#0e1320; --fg:#e8eefc; --muted:#9aa7c1; --card:#121a2c; --accent:#7aa2ff; --accent2:#ffe47a; --good:#8cffb0; --bad:#ff6b6b;
+    --chip:#1c2742; --grid:#17223a; --line:#8fb3ff; --fill:#7aa2ff33; --pt:#ffe47a; --shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"]{
+    --bg:#f3f6fb; --fg:#0c1222; --muted:#5b6a85; --card:#ffffff; --accent:#355bff; --accent2:#d8a600; --good:#0a9b5b; --bad:#d83a3a;
+    --chip:#e9eefb; --grid:#e5ebf9; --line:#2747d8; --fill:#4a6aff22; --pt:#f0b400; --shadow: 0 10px 24px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--fg); font:500 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial}
+
+  /* LAYOUT: drawing on top, panel below */
+  .app{display:flex; flex-direction:column; gap:14px; padding:14px; max-width:1300px; margin:0 auto}
+
+  .panel{background:var(--card); border-radius:16px; box-shadow:var(--shadow); padding:14px}
+  h1{margin:0 0 10px; font:800 18px/1.2 ui-rounded, "SF Pro Rounded", Poppins, system-ui; letter-spacing:.2px}
+
+  /* table */
+  table{width:100%; border-collapse:separate; border-spacing:0 8px}
+  thead th{color:var(--muted); font-weight:800; text-align:left; padding:4px 6px}
+  tbody td{padding:0 6px}
+  input[type="text"], input[type="number"]{width:100%; padding:10px 10px; border-radius:10px; border:1px solid #23305833; background:transparent; color:var(--fg); outline:none}
+  [data-theme="light"] input[type="text"], [data-theme="light"] input[type="number"]{background:#f8faff}
+  input:focus{border-color:#3a57a6; box-shadow:0 0 0 3px #3a57a633}
+  .row-actions{display:flex; gap:6px}
+  .btn{border:0; border-radius:12px; padding:8px 10px; background:#1a2544; color:#dce6ff; cursor:pointer; font-weight:800; box-shadow:var(--shadow)}
+  .btn:active{transform:scale(.97)}
+  .btn.ghost{background:transparent; border:1px solid #2a3a6b}
+  .btn.accent{background:linear-gradient(180deg, #2a54ff, #2045ce); color:#fff}
+  .btn.warn{background:#662626}
+  [data-theme="light"] .btn{background:#e9eefb; color:#142041}
+  [data-theme="light"] .btn.ghost{background:transparent; border:1px solid #c9d4f1}
+  [data-theme="light"] .btn.warn{background:#ffd6d6; color:#7a1d1d}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px}
+
+  .outbox{margin-top:10px; background:var(--card); border:1px solid #1d2b5433; border-radius:12px; padding:10px; display:flex; justify-content:space-between; align-items:center}
+  .area{font:900 20px/1.1 "Roboto Mono", ui-monospace, Menlo, Consolas}
+  .status{color:var(--muted)}
+  .status.bad{color:var(--bad); font-weight:800}
+
+  /* sketch card */
+  .sketch{position:relative; min-height:52vh; height:62vh; background: radial-gradient(1200px 500px at 10% 10%, #16213f 0%, #0f1628 55%, #0d1324 100%); border-radius:16px; box-shadow:var(--shadow); overflow:hidden}
+  [data-theme="light"] .sketch{background:linear-gradient(180deg,#f6f9ff,#eef3ff)}
+  .overlay{position:absolute; inset:0; pointer-events:none}
+  .chip{position:absolute; background:var(--chip); color:var(--fg); border:1px solid #2b3c6e33; border-radius:999px; padding:4px 8px; font:700 clamp(10px,1.2vw,13px)/1 ui-monospace; opacity:.5; pointer-events:none; white-space:nowrap; transform:translate(-50%, -120%)}
+  .chip.solid{opacity:1}
+
+  /* header buttons on sketch */
+  .sketchActions{position:absolute; top:10px; right:10px; display:flex; gap:8px; z-index:3}
+  .iconbtn{width:38px; height:38px; border-radius:999px; border:0; display:grid; place-items:center; box-shadow:var(--shadow); background:var(--card); cursor:pointer}
+
+  /* SVG glow filters and animations */
+  svg{width:100%; height:100%}
+  .grid line{stroke:var(--grid); stroke-width:1}
+
+  .polyseg{stroke:var(--line); stroke-width:6; stroke-linecap:round; filter:url(#glow);} /* thicker */
+  .polyseg.flow{ stroke-dasharray: 16 14; animation: flow 1.4s linear infinite; }
+  @keyframes flow{ to{ stroke-dashoffset: -60; } }
+
+  .polyfill{fill:var(--fill); filter:url(#softglow)}
+
+  .pt{ fill:var(--pt); stroke:#ffd76a; stroke-width:1.2; filter:url(#ptglow)}
+  .ptHalo{ fill:#ffe47a44; filter:url(#softglow); animation:pulse 1.8s ease-in-out infinite }
+  @keyframes pulse{ 0%{opacity:.45; r:9} 50%{opacity:.9; r:13} 100%{opacity:.45; r:9} }
+
+  .credits{position:fixed; right:12px; bottom:10px; color:#8aa2d6; font-size:12px; user-select:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="sketch" id="sketch">
+    <div class="sketchActions">
+      <button id="modeBtn" class="iconbtn" title="Theme">🌙</button>
+    </div>
+    <svg id="svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3.2" result="b"/>
+          <feMerge>
+            <feMergeNode in="b"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6"/>
+        </filter>
+        <filter id="ptglow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.4" result="s"/>
+          <feMerge>
+            <feMergeNode in="s"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <g id="grid" class="grid"></g>
+      <g id="scene">
+        <polygon id="polyfill" class="polyfill" points="" visibility="hidden"></polygon>
+        <g id="segments"></g>
+        <g id="points"></g>
+      </g>
+    </svg>
+    <div id="overlay" class="overlay"></div>
+  </section>
+
+  <section class="panel">
+    <h1>Polygon Area (XY only)</h1>
+    <div class="toolbar">
+      <button id="addRow" class="btn">+ Add Point</button>
+      <button id="clearAll" class="btn ghost">Clear All</button>
+      <button id="fitView" class="btn accent">Zoom to Fit</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:64px">S/N</th>
+          <th style="width:120px">Name</th>
+          <th style="width:110px">X *</th>
+          <th style="width:110px">Y *</th>
+          <th style="width:110px">Z</th>
+          <th style="width:110px">Move</th>
+          <th style="width:70px"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="outbox">
+      <div class="area">Area: <span id="areaVal">0</span> <span style="font-weight:600; color:var(--muted)">sq units</span></div>
+      <div id="status" class="status">Add ≥ 3 valid points</div>
+    </div>
+  </section>
+</div>
+<div class="credits">© Vijay Parmar</div>
+
+<script>
+(function(){
+  // THEME
+  const modeBtn = document.getElementById('modeBtn');
+  function setTheme(t){ document.documentElement.setAttribute('data-theme', t); modeBtn.textContent = (t==='light'?'🌞':'🌙'); localStorage.setItem('poly.theme', t); }
+  setTheme(localStorage.getItem('poly.theme') || 'dark');
+  modeBtn.addEventListener('click',()=> setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
+
+  const tbody = document.getElementById('tbody');
+  const addRowBtn = document.getElementById('addRow');
+  const clearBtn = document.getElementById('clearAll');
+  const fitBtn = document.getElementById('fitView');
+  const areaVal = document.getElementById('areaVal');
+  const statusEl = document.getElementById('status');
+
+  const svg = document.getElementById('svg');
+  const gridG = document.getElementById('grid');
+  const scene = document.getElementById('scene');
+  const segG = document.getElementById('segments');
+  const ptsG = document.getElementById('points');
+  const polyfill = document.getElementById('polyfill');
+  const overlay = document.getElementById('overlay');
+
+  let rows = 0;
+  let points = []; // {id, sn, name, x, y, z}
+  const pinned = new Set(); // keys like pt-2, seg-1
+  const ptChipRefs=[]; const segChipRefs=[]; // {key, el, getPos}
+
+  addGrid();
+  function addGrid(){
+    gridG.innerHTML='';
+    const step=10; const w=100, h=100; // will scale with viewBox
+    for(let x=0;x<=w;x+=step){ const l=line(x,0,x,h); l.setAttribute('opacity', x%50===0? .25:.12); gridG.appendChild(l); }
+    for(let y=0;y<=h;y+=step){ const l=line(0,y,100,y); l.setAttribute('opacity', y%50===0? .25:.12); gridG.appendChild(l); }
+  }
+
+  function line(x1,y1,x2,y2){ const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); return l; }
+  function circle(cx,cy,r,cls){ const c=document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r',r); if(cls) c.setAttribute('class',cls); return c; }
+
+  function addRow(sn="", name="", x="", y="", z=""){
+    const id = ++rows;
+    const tr = document.createElement('tr'); tr.dataset.id=id;
+    tr.innerHTML = `
+      <td><input type="text" inputmode="numeric" value="${sn}" placeholder="${id}" data-f="sn"></td>
+      <td><input type="text" value="${name}" placeholder="P${id}" data-f="name"></td>
+      <td><input type="number" step="any" value="${x}" data-f="x"></td>
+      <td><input type="number" step="any" value="${y}" data-f="y"></td>
+      <td><input type="number" step="any" value="${z}" data-f="z"></td>
+      <td class="row-actions">
+        <button class="btn" data-act="up" title="Move up">↑</button>
+        <button class="btn" data-act="down" title="Move down">↓</button>
+      </td>
+      <td class="row-actions"><button class="btn warn" data-act="del">✕</button></td>`;
+    tbody.appendChild(tr);
+    tr.addEventListener('input', onRowEdit);
+    tr.addEventListener('click', (e)=>{
+      const act = e.target?.dataset?.act; if(!act) return;
+      if(act==='del'){ tr.remove(); recalcFromDOM(); }
+      if(act==='up'){ const prev=tr.previousElementSibling; if(prev) tbody.insertBefore(tr, prev); recalcFromDOM(); }
+      if(act==='down'){ const next=tr.nextElementSibling; if(next) tbody.insertBefore(next, tr); recalcFromDOM(); }
+    });
+    recalcFromDOM();
+    return tr;
+  }
+
+  function onRowEdit(){ recalcFromDOM(); }
+
+  function recalcFromDOM(){
+    points = [];
+    [...tbody.querySelectorAll('tr')].forEach((tr,i)=>{
+      const id = +tr.dataset.id;
+      const sn = val(tr,'sn') || (i+1);
+      const name = val(tr,'name') || `P${i+1}`;
+      const x = parseFloat(val(tr,'x'));
+      const y = parseFloat(val(tr,'y'));
+      const z = val(tr,'z');
+      if(!isNaN(x) && !isNaN(y)) points.push({id, sn, name, x, y, z});
+    });
+    draw();
+  }
+  function val(tr,f){ return tr.querySelector(`[data-f="${f}"]`).value.trim(); }
+
+  // geometry helpers
+  function segLen(a,b){ const dx=b.x-a.x, dy=b.y-a.y; return Math.hypot(dx,dy); }
+  function areaShoelace(pts){ let s=0; for(let i=0;i<pts.length;i++){ const j=(i+1)%pts.length; s += pts[i].x*pts[j].y - pts[j].x*pts[i].y; } return Math.abs(s)/2; }
+  function segmentsOf(pts){ const arr=[]; for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length]; arr.push({a,b, i}); } return arr; }
+  function intersect(p1,p2,p3,p4){
+    const d=(p2.x-p1.x)*(p4.y-p3.y)-(p2.y-p1.y)*(p4.x-p3.x); if(d===0) return false;
+    const ua=((p3.x-p1.x)*(p4.y-p3.y)-(p3.y-p1.y)*(p4.x-p3.x))/d;
+    const ub=((p3.x-p1.x)*(p2.y-p1.y)-(p3.y-p1.y)*(p2.x-p1.x))/d;
+    return ua>0&&ua<1&&ub>0&&ub<1;
+  }
+  function selfIntersects(pts){
+    const n=pts.length; if(n<4) return false;
+    for(let i=0;i<n;i++){
+      const a1=pts[i], a2=pts[(i+1)%n];
+      for(let j=i+1;j<n;j++){
+        if(Math.abs(i-j)<=1 || (i===0 && j===n-1)) continue; // ignore adjacent
+        const b1=pts[j], b2=pts[(j+1)%n];
+        if(intersect(a1,a2,b1,b2)) return true;
+      }
+    }
+    return false;
+  }
+
+  // view transform state (pan/zoom on <g id=scene>)
+  let scale=1, tx=0, ty=0;
+  function setTransform(){ scene.setAttribute('transform', `translate(${tx} ${ty}) scale(${scale})`); updateAllChips(); }
+
+  function fitToPoints(){
+    if(points.length===0){ scale=1; tx=0; ty=0; setTransform(); return; }
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const p of points){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+    const pad= (Math.max(maxX-minX, maxY-minY)||10) * 0.15;
+    minX-=pad; maxX+=pad; minY-=pad; maxY+=pad;
+    const vb = svg.viewBox.baseVal; // 0..100
+    const sx = vb.width/(maxX-minX); const sy = vb.height/(maxY-minY);
+    scale = Math.min(sx, sy);
+    tx = -minX*scale + (vb.width - (maxX-minX)*scale)/2;
+    ty = -minY*scale + (vb.height - (maxY-minY)*scale)/2;
+    setTransform();
+  }
+
+  function draw(){
+    // points and segments
+    ptsG.innerHTML=''; segG.innerHTML=''; polyfill.setAttribute('visibility','hidden');
+    overlay.innerHTML=''; ptChipRefs.length=0; segChipRefs.length=0;
+
+    // draw points with halos
+    points.forEach((p,idx)=>{
+      const halo=circle(p.x,p.y,11,'ptHalo'); ptsG.appendChild(halo);
+      const c=circle(p.x,p.y,4.2,'pt'); c.dataset.key=`pt-${idx}`; c.style.cursor='pointer';
+      c.addEventListener('pointerenter', ()=> setChipSolid(`pt-${idx}`, true));
+      c.addEventListener('pointerleave', ()=> setChipSolid(`pt-${idx}`, false));
+      c.addEventListener('click', ()=> togglePin(`pt-${idx}`));
+      ptsG.appendChild(c);
+
+      // Always-on chip
+      const chip = makeChip(`${p.name||''} (${p.x}, ${p.y})`);
+      chip.dataset.key=`pt-${idx}`; overlay.appendChild(chip);
+      ptChipRefs.push({key:`pt-${idx}`, el:chip, getPos:()=>({x:p.x, y:p.y})});
+      if(pinned.has(`pt-${idx}`)) chip.classList.add('solid');
+    });
+
+    // segments
+    if(points.length>=2){
+      const segs = segmentsOf(points);
+      segs.forEach(({a,b,i})=>{
+        const s=line(a.x,a.y,b.x,b.y); s.setAttribute('class','polyseg flow'); s.dataset.key=`seg-${i}`; s.style.cursor='pointer';
+        s.addEventListener('pointerenter',()=> setChipSolid(`seg-${i}`, true));
+        s.addEventListener('pointerleave',()=> setChipSolid(`seg-${i}`, false));
+        s.addEventListener('click',()=> togglePin(`seg-${i}`));
+        segG.appendChild(s);
+
+        const midx=(a.x+b.x)/2, midy=(a.y+b.y)/2; const len=segLen(a,b);
+        const chip = makeChip(`L${i+1}: ${nice(len)}`);
+        chip.dataset.key=`seg-${i}`; overlay.appendChild(chip);
+        segChipRefs.push({key:`seg-${i}`, el:chip, getPos:()=>({x:midx, y:midy})});
+        if(pinned.has(`seg-${i}`)) chip.classList.add('solid');
+      });
+    }
+
+    // polygon + area
+    if(points.length>=3){
+      if(selfIntersects(points)){
+        polyfill.setAttribute('visibility','hidden');
+        statusEl.textContent='Self-intersection detected. Adjust points.'; statusEl.classList.add('bad');
+        areaVal.textContent='—';
+      } else {
+        const ptsStr = points.map(p=>`${p.x},${p.y}`).join(' ');
+        polyfill.setAttribute('points', ptsStr);
+        polyfill.setAttribute('visibility','visible');
+        const a = areaShoelace(points);
+        areaVal.textContent = nice(a);
+        statusEl.textContent = `Vertices: ${points.length}`; statusEl.classList.remove('bad');
+      }
+    } else {
+      areaVal.textContent='0'; statusEl.textContent='Add ≥ 3 valid points'; statusEl.classList.remove('bad');
+    }
+
+    fitToPoints();
+    updateAllChips();
+  }
+
+  function nice(n){ if(!isFinite(n)) return '—'; const r = Math.round(n*1000)/1000; return r.toLocaleString(); }
+
+  // ===== Chips (overlay) =====
+  function svgToOverlayPos(x,y){
+    const pt = svg.createSVGPoint(); pt.x=x; pt.y=y; const screen = pt.matrixTransform(scene.getScreenCTM());
+    const r = overlay.getBoundingClientRect();
+    return {x: screen.x - r.left, y: screen.y - r.top};
+  }
+  function makeChip(text){ const el=document.createElement('div'); el.className='chip'; el.textContent=text; return el; }
+  function setChipSolid(key, on){ const el=overlay.querySelector(`.chip[data-key="${key}"]`); if(!el) return; if(on||pinned.has(key)) el.classList.add('solid'); else el.classList.remove('solid'); }
+  function togglePin(key){ if(pinned.has(key)) pinned.delete(key); else pinned.add(key); setChipSolid(key, true); }
+  function updateAllChips(){
+    [...ptChipRefs, ...segChipRefs].forEach(ref=>{ const p=ref.getPos(); const c=svgToOverlayPos(p.x,p.y); ref.el.style.left=c.x+"px"; ref.el.style.top=c.y+"px"; });
+  }
+  window.addEventListener('resize', updateAllChips);
+
+  // pan & zoom (wheel + drag)
+  let dragging=false, lx=0, ly=0;
+  svg.addEventListener('pointerdown', (e)=>{ dragging=true; lx=e.clientX; ly=e.clientY; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointerup', (e)=>{ dragging=false; svg.releasePointerCapture(e.pointerId); });
+  svg.addEventListener('pointerleave', ()=> dragging=false);
+  svg.addEventListener('pointermove', (e)=>{
+    if(!dragging) return; const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY; tx+=dx; ty+=dy; setTransform();
+  });
+  svg.addEventListener('wheel', (e)=>{
+    e.preventDefault(); const factor = (e.deltaY<0)? 1.12 : 0.89; const m = svg.createSVGPoint(); m.x=e.clientX; m.y=e.clientY; const p = m.matrixTransform(scene.getScreenCTM().inverse());
+    tx = (tx - p.x*scale) * factor + p.x*scale; ty = (ty - p.y*scale) * factor + p.y*scale; scale *= factor; setTransform();
+  }, {passive:false});
+
+  fitBtn.addEventListener('click', ()=>{ fitToPoints(); });
+  clearBtn.addEventListener('click', ()=>{ tbody.innerHTML=''; points=[]; draw(); });
+  addRowBtn.addEventListener('click', ()=> addRow());
+
+  // bootstrap with three example points
+  addRow('', 'A', 10, 15, '');
+  addRow('', 'B', 80, 20, '');
+  addRow('', 'C', 70, 70, '');
+})();
+</script>
+</body>
+</html>
