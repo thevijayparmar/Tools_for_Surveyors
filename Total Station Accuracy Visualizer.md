@@ -33,7 +33,8 @@ Ideal for **surveyors and engineers** when deciding what instrument suits their 
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/total-station-accuracy.png)
+<img width="2715" height="1678" alt="Screenshot 2025-08-26 114954" src="https://github.com/user-attachments/assets/0b339aeb-5549-40e4-8e18-c23d22088446" />
+
 
 ---
 
@@ -59,6 +60,9 @@ Ideal for **surveyors and engineers** when deciding what instrument suits their 
 - 🧑‍💼 Useful for **field engineers** planning tolerances for different distances.  
 - 💻 Runs **completely offline** — no internet required.  
 - 🎯 Interactive, visual, and intuitive for quick decision-making.  
+____
+Total Station Accuracy Visualizer
+[![Watch on YouTube](https://img.youtube.com/vi/EbrU7c0L-qY/0.jpg)](https://youtube.com/shorts/EbrU7c0L-qY?feature=share)
 
 ---
 
