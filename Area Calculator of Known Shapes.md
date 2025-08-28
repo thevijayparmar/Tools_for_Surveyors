@@ -23,7 +23,7 @@ Runs completely **offline** and works on any device with a browser.
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/area-calculator-known-shapes.png)
+<img width="1847" height="1740" alt="Screenshot 2025-08-26 113800" src="https://github.com/user-attachments/assets/0840710b-33f3-4c6e-b766-eba096bab668" />
 
 ---
 
@@ -49,6 +49,9 @@ Runs completely **offline** and works on any device with a browser.
 - 👷 Useful for **surveyors/engineers** in quick field calculations  
 - 🎨 Attractive UI with spark animations and responsive cards  
 - 🌐 Works **offline**, no internet needed  
+_______
+Area Calculator of Known Shapes
+[![Watch on YouTube](https://img.youtube.com/vi/9sxvzYjW38M/0.jpg)](https://youtube.com/shorts/9sxvzYjW38M?feature=share)
 
 ---
 
