@@ -21,7 +21,8 @@ Runs fully **offline** in any browser — ideal for surveyors, engineers, or pla
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/area-calculator-csv.png)
+<img width="1863" height="1912" alt="Screenshot 2025-08-26 113357" src="https://github.com/user-attachments/assets/26b6bc2c-e703-46f4-83b4-b90fea3217a8" />
+
 
 ---
 
@@ -59,6 +60,10 @@ P4,0,10
 - 🌐 No internet required — runs completely offline  
 - 📱 Works on **phones, tablets, and desktops**  
 - 🧑‍💼 Perfect for **surveyors, engineers, and field staff**  
+_____
+Area Calculator of Any Shape (CSV)
+[![Watch on YouTube](https://img.youtube.com/vi/GhRDrkIQThU/0.jpg)](https://youtube.com/shorts/GhRDrkIQThU?feature=share)
+
 
 ---
 
