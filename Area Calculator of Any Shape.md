@@ -19,7 +19,8 @@ Perfect for use in the **field**, where a CSV file may not be available.
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/area-calculator-manual.png)
+<img width="1829" height="1828" alt="image" src="https://github.com/user-attachments/assets/f6843d48-1045-418b-91bc-cd5ca3e02e2e" />
+
 
 ---
 
@@ -48,6 +49,9 @@ Perfect for use in the **field**, where a CSV file may not be available.
 - 🌐 No internet required – works **completely offline**  
 - 📱 Works on **mobile phones**, tablets, and desktops  
 - 🧑‍💼 Perfect for **surveyors, engineers, and planners** working in the field  
+______
+Area Calculator of Any Shape (Manual Input)
+[![Watch on YouTube](https://img.youtube.com/vi/Bo_QPFeNqxc/0.jpg)](https://youtube.com/shorts/Bo_QPFeNqxc?feature=share)
 
 ---
 
