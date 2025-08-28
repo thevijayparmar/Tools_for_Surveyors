@@ -104,14 +104,9 @@ All tools run **100% offline in your browser** (no data upload), making them fas
 👉 [Open Tool](https://thevijayparmar.github.io/Tools_for_Surveyors/SVG%20to%20DXF%20Converter.html)
 
 ---
-### 11. **Area Calculator with Coordinates** :contentReference[oaicite:10]{index=10}
-- Input coordinates, visulize them and get area of closed boundries
-- 
-👉 [Open Tool](https://thevijayparmar.github.io/Tools_for_Surveyors/Area%20Calculator%20of%20Any%20Shape.html)
 
----
 ## ✨ Features Across All Tools
-- 🌐 Runs fully offline in your browser  [No Internet required]
+- 🌐 Runs fully offline in your browser  
 - 🌓 Light/Dark mode support  
 - ⚡ Fast, lightweight, no installation needed  
 - 📲 Mobile-friendly UIs  
@@ -130,4 +125,3 @@ Created by **[Vijay Parmar](https://github.com/thevijayparmar)** for the surveyi
 Feedback and contributions are welcome!
 
 ---
-
