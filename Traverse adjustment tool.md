@@ -1,5 +1,4 @@
-# 🧭 Traverse Adjustment Tool (v6.0)
-
+# 🧭 Traverse Adjustment Tool
 A powerful **browser-based traverse computation and adjustment tool** built for **surveyors and civil engineers**.  
 Supports both **bearing-distance** and **coordinate entry**, performs **Bowditch adjustment**, and provides rich **visual + tabular outputs**.  
 Runs fully **offline in your browser** – no internet or installation required.
@@ -59,7 +58,9 @@ Runs fully **offline in your browser** – no internet or installation required.
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/traverse-adjustment-tool.png)
+<img width="1241" height="1898" alt="Screenshot 2025-08-26 115046" src="https://github.com/user-attachments/assets/89a99816-7aa3-4f9c-8095-c697cc032b5d" />
+<img width="1862" height="1905" alt="Screenshot 2025-08-26 115056" src="https://github.com/user-attachments/assets/46a094e8-9b48-42bf-a651-344bfd9daeb9" />
+
 
 ---
 
@@ -94,6 +95,12 @@ P4,5000,8200
 - 🌐 Runs **offline** – great for remote sites.  
 - 🎯 Supports both **UTM and geographic (lat/long)** traverses.  
 - 📦 Export results for reports & drawings.  
+
+_______
+Traverse Adjustment Tool
+[![Watch on YouTube](https://img.youtube.com/vi/oSk2cCvP2OI/0.jpg)](https://youtube.com/shorts/oSk2cCvP2OI?feature=share)
+
+
 
 ---
 
