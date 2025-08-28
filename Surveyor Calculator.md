@@ -41,7 +41,8 @@ Click **More** to unlock advanced tools:
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/surveyor-calculator.png)
+<img width="1284" height="1550" alt="Screenshot 2025-08-26 114909" src="https://github.com/user-attachments/assets/6919e9ee-993c-4c9e-8028-fe5ac62b0485" />
+
 
 ---
 
@@ -67,6 +68,9 @@ Click **More** to unlock advanced tools:
 - 💻 Works **completely offline** (no internet needed).  
 - 📱 Runs on mobile, tablet, and desktop.  
 - 🎯 Combines **calculator + mini engineering toolkit** in one.  
+_______
+Surveyor Calculator
+[![Watch on YouTube](https://img.youtube.com/vi/XCDAR304WK8/0.jpg)](https://youtube.com/shorts/XCDAR304WK8?feature=share)
 
 ---
 
