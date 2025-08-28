@@ -43,7 +43,7 @@ Ideal for marking right angles in the field using methods like **3‑4‑5 trian
 ---
 
 ## 🖼️ Preview
-<img width="1829" height="1828" alt="image" src="https://github.com/user-attachments/assets/e6a04baf-6a44-4369-becd-b5f9fbf5e315" />
+<img width="1978" height="1819" alt="Screenshot 2025-08-26 115136" src="https://github.com/user-attachments/assets/31737c9e-71b8-4a6a-80a4-3090b52b3415" />
 
 
 ---
@@ -70,9 +70,8 @@ Ideal for marking right angles in the field using methods like **3‑4‑5 trian
 - 💻 Runs **fully offline** in any browser (desktop or mobile).  
 - 🎯 Provides **visual + formula verification** for confidence.  
 _________
-Area Calculator of Any Shape (Manual Input)
-[![Watch on YouTube](https://img.youtube.com/vi/Bo_QPFeNqxc/0.jpg)](https://youtube.com/shorts/Bo_QPFeNqxc?feature=share)
-
+🔺 Triangle Sides Calculator
+[![Watch on YouTube](https://img.youtube.com/vi/rlPOWMtm_5Q/0.jpg)](https://youtube.com/shorts/rlPOWMtm_5Q?feature=share) 
 ---
 
 ## 📦 Installation
