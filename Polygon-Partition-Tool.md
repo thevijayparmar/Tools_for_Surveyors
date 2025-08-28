@@ -39,7 +39,8 @@ Perfect for fieldwork and planning tasks where advanced GIS software is not acce
 ---
 
 ## 🖼️ Preview
-![Tool Screenshot](./images/polygon-partition-tool.png)
+<img width="1578" height="1913" alt="Screenshot 2025-08-26 114745" src="https://github.com/user-attachments/assets/99b735dd-fa7f-40f9-ac77-1de095b943ff" />
+
 
 ---
 
@@ -74,6 +75,9 @@ P8,-5,20
 - 🌐 **Works offline** – no internet or GIS software needed.  
 - 📊 Generates **ready CSV reports** for documentation.  
 - 🎯 Accurate area/perimeter calculations with **unit conversion**.  
+____
+Polygon Partition Tool
+[![Watch on YouTube](https://img.youtube.com/vi/P42grPa9FiA/0.jpg)](https://youtube.com/shorts/P42grPa9FiA?feature=share)
 
 ---
 
